@@ -32,6 +32,9 @@ void QuantileHistMakerOneAPI::Configure(const Args& args) {
   {
     LOG(INFO) << "device_id = " << i << ", name = " << devices[i].get_info<sycl::info::device::name>();
   }
+  if (rabit::IsDistributed()) {
+      LOG(INFO) << "rabit rank = " << rabit::GetRank();
+  }
   if (param.device_id != GenericParameter::kDefaultId) {
     int n_devices = (int)devices.size();
     CHECK_LT(param.device_id, n_devices);
@@ -73,7 +76,11 @@ void GPUQuantileHistMakerOneAPI::Configure(const Args& args) {
   if (param.device_id != GenericParameter::kDefaultId) {
     qu_ = sycl::queue(devices[param.device_id]);
   } else {
-    qu_ = sycl::queue(sycl::default_selector_v);
+    if (rabit::IsDistributed()) {
+      qu_ = sycl::queue(devices[rabit::GetRank()]);
+    } else {
+      qu_ = sycl::queue(sycl::default_selector());
+    }
   }
 
   // initialize pruner

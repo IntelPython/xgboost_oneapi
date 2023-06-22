@@ -3,6 +3,7 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <rabit/rabit.h>
 
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
@@ -42,7 +43,12 @@ class RegLossObjOneAPI : public ObjFunction {
 
     // sycl::default_selector selector;
     // qu_ = sycl::queue(selector);
-    qu_ = sycl::queue(sycl::default_selector_v);
+    if (rabit::IsDistributed()) {
+      std::vector<sycl::device> devices = sycl::device::get_devices();
+      qu_ = sycl::queue(devices[rabit::GetRank()]);
+    } else {
+      qu_ = sycl::queue(sycl::default_selector());
+    }
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,

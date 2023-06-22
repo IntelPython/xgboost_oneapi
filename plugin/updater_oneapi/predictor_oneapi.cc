@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <limits>
 #include <mutex>
+#include <rabit/rabit.h>
 
 #include "data_oneapi.h"
 
@@ -335,7 +336,11 @@ class GPUPredictorOneAPI : public Predictor {
     } else {
       // sycl::default_selector selector;
       // qu_ = sycl::queue(selector);
-      qu_ = sycl::queue(sycl::default_selector_v);
+      if (rabit::IsDistributed()) {
+        qu_ = sycl::queue(devices[rabit::GetRank()]);
+      } else {
+        qu_ = sycl::queue(sycl::default_selector());
+    }
     }
   }
 

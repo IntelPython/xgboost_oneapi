@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <limits>
 #include <utility>
+#include <rabit/rabit.h>
 
 #include "xgboost/parameter.h"
 #include "xgboost/data.h"
@@ -80,7 +81,12 @@ class SoftmaxMultiClassObjOneAPI : public ObjFunction {
 
     // sycl::default_selector selector;
     // qu_ = sycl::queue(selector);
-    qu_ = sycl::queue(sycl::default_selector_v);
+    if (rabit::IsDistributed()) {
+      std::vector<sycl::device> devices = sycl::device::get_devices();
+      qu_ = sycl::queue(devices[rabit::GetRank()]);
+    } else {
+      qu_ = sycl::queue(sycl::default_selector());
+    }
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,

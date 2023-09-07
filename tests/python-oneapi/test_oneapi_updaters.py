@@ -5,6 +5,7 @@ import xgboost as xgb
 from hypothesis import given, strategies, assume, settings, note
 
 import sys
+import os
 sys.path.append("tests/python")
 import testing as tm
 
@@ -45,7 +46,22 @@ class TestOneAPIUpdaters:
     @given(tm.dataset_strategy.filter(lambda x: x.name != "empty"), strategies.integers(0, 1))
     @settings(deadline=None)
     def test_specified_device_id_oneapi_update(self, dataset, device_id):
-        param = {'updater': 'grow_quantile_histmaker_oneapi', 'device_id': device_id}
-        param = dataset.set_params(param)
-        result = train_result(param, dataset.get_dmat(), 10)
-        assert tm.non_increasing(result['train'][dataset.metric])
+        # Read the list of sycl-devicese
+        sycl_ls = os.popen('sycl-ls').read()
+        devices = sycl_ls.split('\n')
+
+        # Test should launch only on gpu
+        # Find gpus in the list of devices
+        # and use the id in the list insteard of device_id
+        target_device_type = "opencl:gpu"
+        found_devices = 0
+        for idx in range(len(devices)):
+            if len(devices[idx]) >= len(target_device_type):
+                if devices[idx][1:1+len(target_device_type)] == target_device_type:
+                    if (found_devices == device_id):
+                        param = {'updater': 'grow_quantile_histmaker_oneapi', 'device_id': idx}
+                        param = dataset.set_params(param)
+                        result = train_result(param, dataset.get_dmat(), 10)
+                        assert tm.non_increasing(result['train'][dataset.metric])
+                    else:
+                        found_devices += 1

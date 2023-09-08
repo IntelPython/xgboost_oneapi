@@ -1055,7 +1055,7 @@ GradStatsOneAPI<GradientSumT> GPUQuantileHistMakerOneAPI::Builder<GradientSumT>:
 // for the particular feature fid.
 template <typename GradientSumT>
 GradStatsOneAPI<GradientSumT> GPUQuantileHistMakerOneAPI::Builder<GradientSumT>::EnumerateSplit(
-    sycl::ext::oneapi::sub_group& sg,
+    sycl::sub_group& sg,
     const uint32_t* cut_ptr,
     const bst_float* cut_val,
     const GradientPairT* hist_data,

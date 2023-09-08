@@ -342,7 +342,7 @@ class GPUQuantileHistMakerOneAPI: public TreeUpdater {
         bst_uint nodeID,
         typename TreeEvaluatorOneAPI<GradientSumT>::SplitEvaluator const &evaluator, const TrainParamOneAPI& param);
 
-    static GradStatsOneAPI<GradientSumT> EnumerateSplit(sycl::ext::oneapi::sub_group& sg,
+    static GradStatsOneAPI<GradientSumT> EnumerateSplit(sycl::sub_group& sg,
         const uint32_t* cut_ptr, const bst_float* cut_val, const GradientPairT* hist_data,
         const NodeEntry<GradientSumT> &snode, SplitEntryOneAPI<GradientSumT>& p_best, bst_uint fid,
         bst_uint nodeID,

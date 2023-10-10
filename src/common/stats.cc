@@ -19,7 +19,7 @@ namespace xgboost {
 namespace common {
 void Median(Context const* ctx, linalg::Tensor<float, 2> const& t,
             HostDeviceVector<float> const& weights, linalg::Tensor<float, 1>* out) {
-  if (!ctx->IsCPU()) {
+  if (ctx->IsCUDA()) {
     weights.SetDevice(ctx->gpu_id);
     auto opt_weights = OptionalWeights(weights.ConstDeviceSpan());
     auto t_v = t.View(ctx->gpu_id);
@@ -50,7 +50,9 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
   out->SetDevice(ctx->gpu_id);
   out->Reshape(1);
 
-  if (ctx->IsCPU()) {
+  if (ctx->IsCUDA()) {
+      cuda_impl::Mean(ctx, v.View(ctx->gpu_id), out->View(ctx->gpu_id));
+  } else {
     auto h_v = v.HostView();
     float n = v.Size();
     MemStackAllocator<float, DefaultMaxThreads()> tloc(ctx->Threads(), 0.0f);
@@ -58,8 +60,6 @@ void Mean(Context const* ctx, linalg::Vector<float> const& v, linalg::Vector<flo
                 [&](auto i) { tloc[omp_get_thread_num()] += h_v(i) / n; });
     auto ret = std::accumulate(tloc.cbegin(), tloc.cend(), .0f);
     out->HostView()(0) = ret;
-  } else {
-    cuda_impl::Mean(ctx, v.View(ctx->gpu_id), out->View(ctx->gpu_id));
   }
 }
 }  // namespace common

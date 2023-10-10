@@ -4,7 +4,11 @@ endif (PLUGIN_DENSE_PARSER)
 
 if (PLUGIN_UPDATER_ONEAPI)
   add_library(oneapi_plugin OBJECT
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/hist_util_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/multiclass_obj_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/updater_quantile_hist_oneapi.cc
+    ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/device_manager_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/predictor_oneapi.cc)
   target_include_directories(oneapi_plugin
     PRIVATE

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <memory>
 #include <vector>
+#include <rabit/rabit.h>
 
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
@@ -11,7 +12,8 @@
 
 #include "../../src/common/transform.h"
 #include "../../src/common/common.h"
-#include "./regression_loss_oneapi.h"
+#include "regression_loss_oneapi.h"
+#include "device_manager_oneapi.h"
 
 #include "CL/sycl.hpp"
 
@@ -39,60 +41,60 @@ class RegLossObjOneAPI : public ObjFunction {
 
   void Configure(const std::vector<std::pair<std::string, std::string> >& args) override {
     param_.UpdateAllowUnknown(args);
-
-    cl::sycl::default_selector selector;
-    qu_ = cl::sycl::queue(selector);
+    qu_ = device_manager.GetQueue(ctx_->Device());
   }
 
   void GetGradient(const HostDeviceVector<bst_float>& preds,
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    if (info.labels_.Size() == 0U) {
-      LOG(WARNING) << "Label set is empty.";
-    }
-    CHECK_EQ(preds.Size(), info.labels_.Size())
-        << " " << "labels are not correctly provided"
-        << "preds.size=" << preds.Size() << ", label.size=" << info.labels_.Size() << ", "
-        << "Loss: " << Loss::Name();
+  if (info.labels.Size() == 0U) {
+    LOG(WARNING) << "Label set is empty.";
+  }
+  CHECK_EQ(preds.Size(), info.labels.Size())
+      << " " << "labels are not correctly provided"
+      << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
+      << "Loss: " << Loss::Name();
 
-    size_t const ndata = preds.Size();
-    out_gpair->Resize(ndata);
+  size_t const ndata = preds.Size();
+  out_gpair->Resize(ndata);
 
-    // TODO: add label_correct check
-    label_correct_.Resize(1);
-    label_correct_.Fill(1);
+  // TODO: add label_correct check
+  label_correct_.Resize(1);
+  label_correct_.Fill(1);
 
-    bool is_null_weight = info.weights_.Size() == 0;
+  bool is_null_weight = info.weights_.Size() == 0;
 
-    cl::sycl::buffer<bst_float, 1> preds_buf(preds.HostPointer(), preds.Size());
-    cl::sycl::buffer<bst_float, 1> labels_buf(info.labels_.HostPointer(), info.labels_.Size());
-    cl::sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
-    cl::sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
-                                               is_null_weight ? 1 : info.weights_.Size());
+  sycl::buffer<bst_float, 1> preds_buf(preds.HostPointer(), preds.Size());
+  sycl::buffer<bst_float, 1> labels_buf(info.labels.Data()->HostPointer(), info.labels.Size());
+  sycl::buffer<GradientPair, 1> out_gpair_buf(out_gpair->HostPointer(), out_gpair->Size());
+  sycl::buffer<bst_float, 1> weights_buf(is_null_weight ? NULL : info.weights_.HostPointer(),
+                                         is_null_weight ? 1    : info.weights_.Size());
 
-	cl::sycl::buffer<int, 1> additional_input_buf(1);
+  const size_t n_targets = std::max(info.labels.Shape(1), static_cast<size_t>(1));
+
+	sycl::buffer<int, 1> additional_input_buf(1);
 	{
-		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>();
+		auto additional_input_acc = additional_input_buf.get_access<sycl::access::mode::write>();
 		additional_input_acc[0] = 1; // Fill the label_correct flag
 	}
 
     auto scale_pos_weight = param_.scale_pos_weight;
     if (!is_null_weight) {
-      CHECK_EQ(info.weights_.Size(), ndata)
+      CHECK_EQ(info.weights_.Size(), info.labels.Shape(0))
         << "Number of weights should be equal to number of data points.";
     }
 
-    qu_.submit([&](cl::sycl::handler& cgh) {
-      auto preds_acc            = preds_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto labels_acc           = labels_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto weights_acc          = weights_buf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto out_gpair_acc        = out_gpair_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+      qu_.submit([&](sycl::handler& cgh) {
+      auto preds_acc            = preds_buf.get_access<sycl::access::mode::read>(cgh);
+      auto labels_acc           = labels_buf.get_access<sycl::access::mode::read>(cgh);
+      auto weights_acc          = weights_buf.get_access<sycl::access::mode::read>(cgh);
+      auto out_gpair_acc        = out_gpair_buf.get_access<sycl::access::mode::write>(cgh);
+      auto additional_input_acc = additional_input_buf.get_access<sycl::access::mode::write>(cgh);
+      cgh.parallel_for<>(sycl::range<1>(ndata), [=](sycl::id<1> pid) {
         int idx = pid[0];
         bst_float p = Loss::PredTransform(preds_acc[idx]);
-        bst_float w = is_null_weight ? 1.0f : weights_acc[idx];
+        bst_float w = is_null_weight ? 1.0f : weights_acc[idx/n_targets];
         bst_float label = labels_acc[idx];
         if (label == 1.0f) {
           w *= scale_pos_weight;
@@ -108,7 +110,7 @@ class RegLossObjOneAPI : public ObjFunction {
 
     int flag = 1;
 	{
-		auto additional_input_acc = additional_input_buf.get_access<cl::sycl::access::mode::read>();
+		auto additional_input_acc = additional_input_buf.get_access<sycl::access::mode::read>();
 		flag = additional_input_acc[0];
 	}
 
@@ -123,14 +125,13 @@ class RegLossObjOneAPI : public ObjFunction {
     return Loss::DefaultEvalMetric();
   }
 
-  void PredTransform(HostDeviceVector<float> *io_preds) override {
+  void PredTransform(HostDeviceVector<float> *io_preds) const override {
     size_t const ndata = io_preds->Size();
+    sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
-    cl::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
-
-    qu_.submit([&](cl::sycl::handler& cgh) {
-      auto io_preds_acc = io_preds_buf.get_access<cl::sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<>(cl::sycl::range<1>(ndata), [=](cl::sycl::id<1> pid) {
+    qu_.submit([&](sycl::handler& cgh) {
+      auto io_preds_acc = io_preds_buf.get_access<sycl::access::mode::read_write>(cgh);
+      cgh.parallel_for<>(sycl::range<1>(ndata), [=](sycl::id<1> pid) {
         int idx = pid[0];
         io_preds_acc[idx] = Loss::PredTransform(io_preds_acc[idx]);
       });
@@ -139,6 +140,15 @@ class RegLossObjOneAPI : public ObjFunction {
 
   float ProbToMargin(float base_score) const override {
     return Loss::ProbToMargin(base_score);
+  }
+
+  struct ObjInfo Task() const override {
+    return Loss::Info();
+  };
+
+  uint32_t Targets(MetaInfo const& info) const override {
+    // Multi-target regression.
+    return std::max(static_cast<size_t>(1), info.labels.Shape(1));
   }
 
   void SaveConfig(Json* p_out) const override {
@@ -153,8 +163,9 @@ class RegLossObjOneAPI : public ObjFunction {
 
  protected:
   RegLossParamOneAPI param_;
+  DeviceManagerOneAPI device_manager;
 
-  cl::sycl::queue qu_;
+  mutable sycl::queue qu_;
 };
 
 // register the objective functions

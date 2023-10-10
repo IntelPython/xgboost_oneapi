@@ -52,7 +52,8 @@ std::string MapTreeMethodToUpdaters(Context const* ctx, TreeMethod tree_method) 
     case TreeMethod::kAuto:  // Use hist as default in 2.0
     case TreeMethod::kHist: {
       return ctx->DispatchDevice([] { return "grow_quantile_histmaker"; },
-                                 [] { return "grow_gpu_hist"; });
+                                 [] { return "grow_gpu_hist"; },
+                                 [] { return "grow_quantile_histmaker_oneapi"; });
     }
     case TreeMethod::kApprox: {
       return ctx->DispatchDevice([] { return "grow_histmaker"; }, [] { return "grow_gpu_approx"; });
@@ -115,10 +116,10 @@ void GBTree::Configure(Args const& cfg) {
 
 #if defined(XGBOOST_USE_ONEAPI)
   if (!oneapi_predictor_) {
-    oneapi_predictor_ =
-        std::unique_ptr<Predictor>(Predictor::Create("oneapi_predictor", this->ctx_));
+   oneapi_predictor_ =
+       std::unique_ptr<Predictor>(Predictor::Create("oneapi_predictor", this->ctx_));
   }
-  oneapi_predictor_->Configure(cfg);
+ oneapi_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_ONEAPI)
 
   // `updater` parameter was manually specified
@@ -565,11 +566,18 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
   if (f_dmat && !f_dmat->SingleColBlock()) {
     if (ctx_->IsCPU()) {
       return cpu_predictor_;
-    } else {
+    } else if (ctx_->IsCUDA()) {
       common::AssertGPUSupport();
       CHECK(gpu_predictor_);
       return gpu_predictor_;
+    } else {
+#if defined(XGBOOST_USE_ONEAPI)
+      common::AssertOneAPISupport();
+      CHECK(oneapi_predictor_);
+      return oneapi_predictor_;
+#endif  // defined(XGBOOST_USE_ONEAPI)
     }
+
   }
 
   // Data comes from Device DMatrix.
@@ -603,10 +611,16 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
 
   if (ctx_->IsCPU()) {
     return cpu_predictor_;
-  } else {
+  } else if (ctx_->IsCUDA()) {
     common::AssertGPUSupport();
     CHECK(gpu_predictor_);
     return gpu_predictor_;
+  } else {
+#if defined(XGBOOST_USE_ONEAPI)
+      common::AssertOneAPISupport();
+      CHECK(oneapi_predictor_);
+      return oneapi_predictor_;
+#endif  // defined(XGBOOST_USE_ONEAPI)
   }
 
   return cpu_predictor_;

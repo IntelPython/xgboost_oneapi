@@ -235,8 +235,8 @@ class PseudoHuberRegression : public FitIntercept {
     auto predt = linalg::MakeVec(&preds);
 
     info.weights_.SetDevice(ctx_->gpu_id);
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+                                                  : info.weights_.ConstHostSpan()};
 
     linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
       auto sample_id = std::get<0>(linalg::UnravelIndex(i, labels.Shape()));
@@ -696,8 +696,8 @@ class MeanAbsoluteError : public ObjFunction {
     preds.SetDevice(ctx_->gpu_id);
     auto predt = linalg::MakeVec(&preds);
     info.weights_.SetDevice(ctx_->gpu_id);
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+                                                  : info.weights_.ConstHostSpan()};
 
     linalg::ElementWiseKernel(ctx_, labels, [=] XGBOOST_DEVICE(size_t i, float const y) mutable {
       auto sign = [](auto x) {

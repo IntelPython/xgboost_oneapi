@@ -8,35 +8,37 @@
 #include "../helpers.h"
 namespace xgboost {
 
-TEST(Plugin, LinearRegressionGPairOneAPI) {
-  Context tparam = MakeCUDACtx(0);
+TEST(SyclObjective, LinearRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   std::vector<std::pair<std::string, std::string>> args;
 
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:squarederror_oneapi", &tparam)
+    ObjFunction::Create("reg:squarederror_oneapi", &ctx)
   };
 
   obj->Configure(args);
   CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
-                   {0,   0,   0,   0,    1,    1,    1, 1},
-                   {1,   1,   1,   1,    1,    1,    1, 1},
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
-                   {1,   1,   1,   1,    1,    1,    1, 1});
+                   {0, 0.1f, 0.9f,    1,     0,  0.1f,  0.9f,  1},
+                   {0,    0,    0,    0,     1,     1,     1,  1},
+                   {1,    1,    1,    1,     1,     1,     1,  1},
+                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f,  0},
+                   {1,    1,    1,    1,     1,     1,     1,  1});
   CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,   1,    0,  0.1f, 0.9f,  1},
-                   {0,   0,   0,   0,    1,    1,    1, 1},
+                   {0, 0.1f, 0.9f,    1,     0,  0.1f,  0.9f,  1},
+                   {0,    0,    0,    0,     1,     1,     1,  1},
                    {},  // empty weight
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f, 0},
-                   {1,   1,   1,   1,    1,    1,    1, 1});
+                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f,  0},
+                   {1,    1,    1,    1,     1,     1,     1,  1});
   ASSERT_NO_THROW(obj->DefaultEvalMetric());
 }
 
-TEST(Plugin, SquaredLogOneAPI) {
-  Context tparam = MakeCUDACtx(0);
+TEST(SyclObjective, SquaredLog) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   std::vector<std::pair<std::string, std::string>> args;
 
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:squaredlogerror_oneapi", &tparam) };
+  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:squaredlogerror_oneapi", &ctx) };
   obj->Configure(args);
   CheckConfigReload(obj, "reg:squaredlogerror_oneapi");
 
@@ -55,27 +57,29 @@ TEST(Plugin, SquaredLogOneAPI) {
   ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
 }
 
-TEST(Plugin, LogisticRegressionGPairOneAPI) {
-  Context tparam = MakeCUDACtx(0);
+TEST(SyclObjective, LogisticRegressionGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:logistic_oneapi", &tparam) };
+  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:logistic_oneapi", &ctx) };
 
   obj->Configure(args);
   CheckConfigReload(obj, "reg:logistic_oneapi");
 
   CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,  0.9f,      1}, // preds
-                   {   0,    0,    0,    0,    1,     1,     1,     1}, // labels
-                   {   1,    1,    1,    1,    1,     1,     1,     1}, // weights
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f}, // out_grad
+                   {   0,   0.1f,  0.9f,     1,     0,   0.1f,   0.9f,      1},  // preds
+                   {   0,      0 ,    0,     0,     1,      1,      1,      1},  // labels
+                   {   1,      1,     1,     1,     1,      1,      1,      1},  // weights
+                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},  // out_grad
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
 }
 
-TEST(Plugin, LogisticRegressionBasicOneAPI) {
-  Context lparam = MakeCUDACtx(0);
+TEST(SyclObjective, LogisticRegressionBasic) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:logistic_oneapi", &lparam)
+    ObjFunction::Create("reg:logistic_oneapi", &ctx)
   };
 
   obj->Configure(args);
@@ -102,11 +106,12 @@ TEST(Plugin, LogisticRegressionBasicOneAPI) {
   }
 }
 
-TEST(Plugin, LogisticRawGPairOneAPI) {
-  Context lparam = MakeCUDACtx(0);
+TEST(SyclObjective, LogisticRawGPair) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   std::vector<std::pair<std::string, std::string>> args;
   std::unique_ptr<ObjFunction>  obj {
-    ObjFunction::Create("binary:logitraw_oneapi", &lparam)
+    ObjFunction::Create("binary:logitraw_oneapi", &ctx)
   };
 
   obj->Configure(args);
@@ -119,15 +124,18 @@ TEST(Plugin, LogisticRawGPairOneAPI) {
                    {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
 }
 
-TEST(Plugin, CPUvsOneAPI) {
-  Context ctx = MakeCUDACtx(0);
+TEST(SyclObjective, CPUvsSycl) {
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+  ObjFunction * obj_sycl =
+      ObjFunction::Create("reg:squarederror_oneapi", &ctx);
 
+  ctx = ctx.MakeCPU();
   ObjFunction * obj_cpu =
       ObjFunction::Create("reg:squarederror", &ctx);
-  ObjFunction * obj_oneapi =
-      ObjFunction::Create("reg:squarederror_oneapi", &ctx);
+
   HostDeviceVector<GradientPair> cpu_out_preds;
-  HostDeviceVector<GradientPair> oneapi_out_preds;
+  HostDeviceVector<GradientPair> sycl_out_preds;
 
   constexpr size_t kRows = 400;
   constexpr size_t kCols = 100;
@@ -148,29 +156,27 @@ TEST(Plugin, CPUvsOneAPI) {
 
   {
     // CPU
-    ctx = ctx.MakeCPU();
     obj_cpu->GetGradient(preds, info, 0, &cpu_out_preds);
   }
   {
-    // oneapi
-    ctx.gpu_id = 0;
-    obj_oneapi->GetGradient(preds, info, 0, &oneapi_out_preds);
+    // sycl
+    obj_sycl->GetGradient(preds, info, 0, &sycl_out_preds);
   }
 
   auto& h_cpu_out = cpu_out_preds.HostVector();
-  auto& h_oneapi_out = oneapi_out_preds.HostVector();
+  auto& h_sycl_out = sycl_out_preds.HostVector();
 
   float sgrad = 0;
   float shess = 0;
   for (size_t i = 0; i < kRows; ++i) {
-    sgrad += std::pow(h_cpu_out[i].GetGrad() - h_oneapi_out[i].GetGrad(), 2);
-    shess += std::pow(h_cpu_out[i].GetHess() - h_oneapi_out[i].GetHess(), 2);
+    sgrad += std::pow(h_cpu_out[i].GetGrad() - h_sycl_out[i].GetGrad(), 2);
+    shess += std::pow(h_cpu_out[i].GetHess() - h_sycl_out[i].GetHess(), 2);
   }
   ASSERT_NEAR(sgrad, 0.0f, kRtEps);
   ASSERT_NEAR(shess, 0.0f, kRtEps);
 
   delete obj_cpu;
-  delete obj_oneapi;
+  delete obj_sycl;
 }
 
 }  // namespace xgboost

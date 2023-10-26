@@ -71,15 +71,15 @@ class QuantileRegression : public ObjFunction {
         linalg::MakeTensorView(ctx_, out_gpair, info.num_row_, n_alphas, n_targets / n_alphas);
 
     info.weights_.SetDevice(ctx_->gpu_id);
-    common::OptionalWeights weight{ctx_->IsCPU() ? info.weights_.ConstHostSpan()
-                                                 : info.weights_.ConstDeviceSpan()};
+    common::OptionalWeights weight{ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
+                                                  : info.weights_.ConstHostSpan()};
 
     preds.SetDevice(ctx_->gpu_id);
     auto predt = linalg::MakeVec(&preds);
     auto n_samples = info.num_row_;
 
     alpha_.SetDevice(ctx_->gpu_id);
-    auto alpha = ctx_->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx_->IsCUDA() ? alpha_.ConstDeviceSpan() : alpha_.ConstHostSpan();
 
     linalg::ElementWiseKernel(
         ctx_, gpair, [=] XGBOOST_DEVICE(std::size_t i, GradientPair const&) mutable {
@@ -106,27 +106,7 @@ class QuantileRegression : public ObjFunction {
     base_score->Reshape(n_targets);
 
     double sw{0};
-    if (ctx_->IsCPU()) {
-      auto quantiles = base_score->HostView();
-      auto h_weights = info.weights_.ConstHostVector();
-      if (info.weights_.Empty()) {
-        sw = info.num_row_;
-      } else {
-        sw = std::accumulate(std::cbegin(h_weights), std::cend(h_weights), 0.0);
-      }
-      for (bst_target_t t{0}; t < n_targets; ++t) {
-        auto alpha = param_.quantile_alpha[t];
-        auto h_labels = info.labels.HostView();
-        if (h_weights.empty()) {
-          quantiles(t) =
-              common::Quantile(ctx_, alpha, linalg::cbegin(h_labels), linalg::cend(h_labels));
-        } else {
-          CHECK_EQ(h_weights.size(), h_labels.Size());
-          quantiles(t) = common::WeightedQuantile(ctx_, alpha, linalg::cbegin(h_labels),
-                                                  linalg::cend(h_labels), std::cbegin(h_weights));
-        }
-      }
-    } else {
+    if (ctx_->IsCUDA()) {
 #if defined(XGBOOST_USE_CUDA)
       alpha_.SetDevice(ctx_->gpu_id);
       auto d_alpha = alpha_.ConstDeviceSpan();
@@ -163,6 +143,26 @@ class QuantileRegression : public ObjFunction {
 #else
       common::AssertGPUSupport();
 #endif  // defined(XGBOOST_USE_CUDA)
+    } else {
+      auto quantiles = base_score->HostView();
+      auto h_weights = info.weights_.ConstHostVector();
+      if (info.weights_.Empty()) {
+        sw = info.num_row_;
+      } else {
+        sw = std::accumulate(std::cbegin(h_weights), std::cend(h_weights), 0.0);
+      }
+      for (bst_target_t t{0}; t < n_targets; ++t) {
+        auto alpha = param_.quantile_alpha[t];
+        auto h_labels = info.labels.HostView();
+        if (h_weights.empty()) {
+          quantiles(t) =
+              common::Quantile(ctx_, alpha, linalg::cbegin(h_labels), linalg::cend(h_labels));
+        } else {
+          CHECK_EQ(h_weights.size(), h_labels.Size());
+          quantiles(t) = common::WeightedQuantile(ctx_, alpha, linalg::cbegin(h_labels),
+                                                  linalg::cend(h_labels), std::cbegin(h_weights));
+        }
+      }
     }
 
     // For multiple quantiles, we should extend the base score to a vector instead of

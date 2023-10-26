@@ -949,7 +949,12 @@ class XGBModel(XGBModelBase):
 
     def _create_dmatrix(self, ref: Optional[DMatrix], **kwargs: Any) -> DMatrix:
         # Use `QuantileDMatrix` to save memory.
-        if _can_use_qdm(self.tree_method) and self.booster != "gblinear":
+        is_sycl = self.device is not None and self.device.startswith("sycl")
+        if (
+            _can_use_qdm(self.tree_method)
+            and self.booster != "gblinear"
+            and not is_sycl
+        ):
             try:
                 return QuantileDMatrix(
                     **kwargs, ref=ref, nthread=self.n_jobs, max_bin=self.max_bin

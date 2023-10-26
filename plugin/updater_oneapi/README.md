@@ -2,30 +2,20 @@
 This plugin adds support of OneAPI programming model for tree construction and prediction algorithms to XGBoost.
 
 ## Usage
-Specify the 'objective' parameter as one of the following options to offload computation of objective function on OneAPI device. 
+Specify the 'device' parameter as one of the following options to offload model training and inference on OneAPI device. 
 
 ### Algorithms
-| objective | Description |
+| device | Description |
 | --- | --- |
-reg:squarederror_oneapi | regression with squared loss  |
-reg:squaredlogerror_oneapi | regression with root mean squared logarithmic loss |
-reg:logistic_oneapi | logistic regression for probability regression task |
-binary:logistic_oneapi | logistic regression for binary classification task |
-binary:logitraw_oneapi | logistic regression for classification, output score before logistic transformation |
-
-Specify the 'predictor' parameter as one of the following options to offload prediction stage on OneAPI device. 
-
-### Algorithms
-| predictor | Description |
-| --- | --- |
-predictor_oneapi | prediction using OneAPI device  |
-
-Please note that parameter names are not finalized and can be changed during further integration of OneAPI support.
+sycl | use default sycl device  |
+sycl:gpu | use default sycl gpu  |
+sycl:cpu | use default sycl cpu  |
+sycl:gpu:N | use sycl gpu number N |
+sycl:cpu:N | use sycl cpu number N |
 
 Python example:
 ```python
-param['predictor'] = 'predictor_oneapi'
-param['objective'] = 'reg:squarederror_oneapi'
+param['device'] = 'sycl:gpu:0'
 ```
 
 ## Dependencies

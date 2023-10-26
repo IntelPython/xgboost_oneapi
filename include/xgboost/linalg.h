@@ -596,13 +596,13 @@ auto MakeTensorView(Context const *ctx, common::Span<T> data, S &&...shape) {
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->HostSpan() : data->DeviceSpan();
+  auto span = ctx->IsCUDA() ? data->DeviceSpan() : data->HostSpan();
   return MakeTensorView(ctx->gpu_id, span, std::forward<S>(shape)...);
 }
 
 template <typename T, typename... S>
 auto MakeTensorView(Context const *ctx, HostDeviceVector<T> const *data, S &&...shape) {
-  auto span = ctx->IsCPU() ? data->ConstHostSpan() : data->ConstDeviceSpan();
+  auto span = ctx->IsCUDA() ? data->ConstDeviceSpan() : data->ConstHostSpan();
   return MakeTensorView(ctx->gpu_id, span, std::forward<S>(shape)...);
 }
 

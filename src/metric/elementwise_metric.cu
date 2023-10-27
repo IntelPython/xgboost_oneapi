@@ -349,7 +349,6 @@ struct EvalEWiseBase : public MetricNoCache {
     if (info.labels.Size() != 0) {
       CHECK_NE(info.labels.Shape(1), 0);
     }
-    LOG(INFO) << "EvalEWiseBase::Eval 0";
     auto labels = info.labels.View(ctx_->gpu_id);
     info.weights_.SetDevice(ctx_->gpu_id);
     common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()

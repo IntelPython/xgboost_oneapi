@@ -130,6 +130,7 @@ DeviceOrd CUDAOrdinal(DeviceOrd device, bool) {
   std::string s_device = input;
   if (!is_sycl) {
     s_device = std::regex_replace(s_device, std::regex{"gpu"}, DeviceSym::CUDA());
+  }
 
   auto split_it = std::find(s_device.cbegin(), s_device.cend(), ':');
   // For these cases we need to move iterator to the end, not to look for a ordinal.

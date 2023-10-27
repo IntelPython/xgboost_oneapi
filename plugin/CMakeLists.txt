@@ -3,6 +3,7 @@ if (PLUGIN_DENSE_PARSER)
 endif (PLUGIN_DENSE_PARSER)
 
 if (PLUGIN_UPDATER_ONEAPI)
+  set(CMAKE_CXX_COMPILER "icpx")
   add_library(oneapi_plugin OBJECT
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/hist_util_oneapi.cc
     ${xgboost_SOURCE_DIR}/plugin/updater_oneapi/regression_obj_oneapi.cc
@@ -24,7 +25,8 @@ if (PLUGIN_UPDATER_ONEAPI)
     POSITION_INDEPENDENT_CODE ON)
   if (USE_OPENMP)
     find_package(OpenMP REQUIRED)
-    target_link_libraries(oneapi_plugin PUBLIC OpenMP::OpenMP_CXX)
+    set_target_properties(oneapi_plugin PROPERTIES
+    COMPILE_FLAGS "-fsycl -qopenmp")
   endif (USE_OPENMP)
   # Get compilation and link flags of oneapi_plugin and propagate to objxgboost
   target_link_libraries(objxgboost PUBLIC oneapi_plugin)

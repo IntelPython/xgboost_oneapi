@@ -9,6 +9,11 @@
 namespace xgboost {
 
 sycl::device DeviceManagerOneAPI::GetDevice(const DeviceOrd& device_spec) const {
+    if (!device_spec.IsSycl()) {
+        LOG(WARNING) << "Sycl kernel is executed with non-sycl context. "
+                     << "Default sycl device_selector will be used.";
+    }
+
     bool not_use_default_selector = (device_spec.ordinal != kDefaultOrdinal) ||
                                     (rabit::IsDistributed());
     if (not_use_default_selector) {
@@ -28,22 +33,27 @@ sycl::device DeviceManagerOneAPI::GetDevice(const DeviceOrd& device_spec) const 
           return gpu_devices[device_idx];
       }   
     } else {
-      if (device_spec.IsSyclDefault()) {
-        return sycl::device(sycl::default_selector_v);
-      } else if(device_spec.IsSyclCPU()) {
-        return sycl::device(sycl::cpu_selector_v);
-      } else {
-        return sycl::device(sycl::gpu_selector_v);
-      }
+        if(device_spec.IsSyclCPU()) {
+            return sycl::device(sycl::cpu_selector_v);
+        } else if(device_spec.IsSyclGPU()) {
+            return sycl::device(sycl::gpu_selector_v);
+        } else {
+            return sycl::device(sycl::default_selector_v);
+        }
     }
 }
 
 sycl::queue DeviceManagerOneAPI::GetQueue(const DeviceOrd& device_spec) const {
+    if (!device_spec.IsSycl()) {
+        LOG(WARNING) << "Sycl kernel is executed with non-sycl context. "
+                     << "Default sycl device_selector will be used.";
+    }
+
     QueueRegister_t& queue_register = GetQueueRegister();
     if (queue_register.count(device_spec.Name()) > 0) {
         return queue_register.at(device_spec.Name());
     }
-    
+
     bool not_use_default_selector = (device_spec.ordinal != kDefaultOrdinal) ||
                                     (rabit::IsDistributed());
     std::lock_guard<std::mutex> guard(queue_registering_mutex);
@@ -64,12 +74,12 @@ sycl::queue DeviceManagerOneAPI::GetQueue(const DeviceOrd& device_spec) const {
           queue_register[device_spec.Name()] = sycl::queue(gpu_devices[device_idx]);
       }
     } else {
-        if (device_spec.IsSyclDefault()) {
-            queue_register[device_spec.Name()] = sycl::queue(sycl::default_selector_v);
-        } else if (device_spec.IsSyclCPU()) {
+        if (device_spec.IsSyclCPU()) {
             queue_register[device_spec.Name()] = sycl::queue(sycl::cpu_selector_v);
         } else if (device_spec.IsSyclGPU()) {
             queue_register[device_spec.Name()] = sycl::queue(sycl::gpu_selector_v);
+        } else {
+            queue_register[device_spec.Name()] = sycl::queue(sycl::default_selector_v);
         }
     }
     return queue_register.at(device_spec.Name());

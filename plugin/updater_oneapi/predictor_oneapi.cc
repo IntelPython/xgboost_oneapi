@@ -180,6 +180,9 @@ class DeviceModelOneAPI {
     int sum = 0;
     tree_segments_[0] = sum;
     for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
+      if (model.trees[tree_idx]->HasCategoricalSplit()) {
+        LOG(FATAL) << "Categorical features are not yet supported by sycl";
+      }
       sum += model.trees[tree_idx]->GetNodes().size();
       tree_segments_[tree_idx - tree_begin + 1] = sum;
     }

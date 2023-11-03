@@ -34,6 +34,8 @@ inline gbm::GBTreeModel CreateTestModel(LearnerModelParam const* param, Context 
 inline auto CreatePredictorForTest(Context const* ctx) {
   if (ctx->IsCPU()) {
     return Predictor::Create("cpu_predictor", ctx);
+  } else if (ctx->IsSycl()) {
+    return Predictor::Create("oneapi_predictor", ctx);
   } else {
     return Predictor::Create("gpu_predictor", ctx);
   }
@@ -82,6 +84,8 @@ void TestPredictionFromGradientIndex(Context const* ctx, size_t rows, size_t col
     CHECK(!p_dmat->PageExists<Page>());
   }
 }
+
+void TestBasic(DMatrix* dmat, Context const * ctx);
 
 // p_full and p_hist should come from the same data set.
 void TestTrainingPrediction(Context const* ctx, size_t rows, size_t bins,

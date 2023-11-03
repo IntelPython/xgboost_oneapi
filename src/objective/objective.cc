@@ -18,25 +18,31 @@ DMLC_REGISTRY_ENABLE(::xgboost::ObjFunctionReg);
 namespace xgboost {
 // implement factory functions
 ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
-  std::string replaced_name = name;
-  if (ctx->IsSycl()) {
-    auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name + "_oneapi");
-    if (e != nullptr) {
-      replaced_name += "_oneapi";
-    }
-  }
-  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(replaced_name);
+  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name);
   if (e == nullptr) {
     std::stringstream ss;
     for (const auto& entry : ::dmlc::Registry< ::xgboost::ObjFunctionReg>::List()) {
       ss << "Objective candidate: " << entry->name << "\n";
     }
-    LOG(FATAL) << "Unknown objective function: `" << replaced_name << "`\n"
+    LOG(FATAL) << "Unknown objective function: `" << name << "`\n"
                << ss.str();
   }
   auto pobj = (e->body)();
   pobj->ctx_ = ctx;
   return pobj;
+}
+
+// Return sycl specific implementation name if possible.
+std::string ObjFunction::GetSyclImplementationName(const std::string& name) {
+  const std::string sycl_postfix = "_oneapi";
+  auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name + sycl_postfix);
+  if (e != nullptr) {
+    // Function has specific sycl implementation
+    return name + sycl_postfix;
+  } else {
+    // Function hasn't specific sycl implementation
+    return name;
+  }
 }
 
 void ObjFunction::InitEstimation(MetaInfo const&, linalg::Tensor<float, 1>* base_score) const {

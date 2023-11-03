@@ -10,7 +10,8 @@ namespace xgboost {
 
 sycl::device DeviceManagerOneAPI::GetDevice(const DeviceOrd& device_spec) const {
     if (!device_spec.IsSycl()) {
-        LOG(WARNING) << "Sycl kernel is executed with non-sycl context. "
+        LOG(WARNING) << "Sycl kernel is executed with non-sycl context: "
+                     << device_spec.Name() << ". "
                      << "Default sycl device_selector will be used.";
     }
 
@@ -45,7 +46,8 @@ sycl::device DeviceManagerOneAPI::GetDevice(const DeviceOrd& device_spec) const 
 
 sycl::queue DeviceManagerOneAPI::GetQueue(const DeviceOrd& device_spec) const {
     if (!device_spec.IsSycl()) {
-        LOG(WARNING) << "Sycl kernel is executed with non-sycl context. "
+        LOG(WARNING) << "Sycl kernel is executed with non-sycl context: "
+                     << device_spec.Name() << ". "
                      << "Default sycl device_selector will be used.";
     }
 

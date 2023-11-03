@@ -26,6 +26,79 @@
 #include "xgboost/tree_model.h"                   // for RegTree
 
 namespace xgboost {
+
+void TestBasic(DMatrix* dmat, Context const *ctx) {
+  auto predictor = std::unique_ptr<Predictor>(CreatePredictorForTest(ctx));
+
+  size_t const kRows = dmat->Info().num_row_;
+  size_t const kCols = dmat->Info().num_col_;
+
+  LearnerModelParam mparam{MakeMP(kCols, .0, 1)};
+
+  gbm::GBTreeModel model = CreateTestModel(&mparam, ctx);
+
+  // Test predict batch
+  PredictionCacheEntry out_predictions;
+  predictor->InitOutPredictions(dmat->Info(), &out_predictions.predictions, model);
+  predictor->PredictBatch(dmat, &out_predictions, model, 0);
+
+  std::vector<float>& out_predictions_h = out_predictions.predictions.HostVector();
+  for (size_t i = 0; i < out_predictions.predictions.Size(); i++) {
+    ASSERT_EQ(out_predictions_h[i], 1.5);
+  }
+
+  // Test predict instance
+  auto const& batch = *dmat->GetBatches<xgboost::SparsePage>().begin();
+  auto page = batch.GetView();
+  for (size_t i = 0; i < batch.Size(); i++) {
+    std::vector<float> instance_out_predictions;
+    predictor->PredictInstance(page[i], &instance_out_predictions, model, 0,
+                                   dmat->Info().IsColumnSplit());
+    ASSERT_EQ(instance_out_predictions[0], 1.5);
+  }
+
+  // Test predict leaf
+  HostDeviceVector<float> leaf_out_predictions;
+  predictor->PredictLeaf(dmat, &leaf_out_predictions, model);
+  auto const& h_leaf_out_predictions = leaf_out_predictions.ConstHostVector();
+  for (auto v : h_leaf_out_predictions) {
+    ASSERT_EQ(v, 0);
+  }
+
+  if (dmat->Info().IsColumnSplit()) {
+    // Predict contribution is not supported for column split.
+    return;
+  }
+
+  // Test predict contribution
+  HostDeviceVector<float> out_contribution_hdv;
+  auto& out_contribution = out_contribution_hdv.HostVector();
+  predictor->PredictContribution(dmat, &out_contribution_hdv, model);
+  ASSERT_EQ(out_contribution.size(), kRows * (kCols + 1));
+  for (size_t i = 0; i < out_contribution.size(); ++i) {
+    auto const& contri = out_contribution[i];
+    // shift 1 for bias, as test tree is a decision dump, only global bias is
+    // filled with LeafValue().
+    if ((i + 1) % (kCols + 1) == 0) {
+      ASSERT_EQ(out_contribution.back(), 1.5f);
+    } else {
+      ASSERT_EQ(contri, 0);
+    }
+  }
+  // Test predict contribution (approximate method)
+  predictor->PredictContribution(dmat, &out_contribution_hdv, model, 0, nullptr, true);
+  for (size_t i = 0; i < out_contribution.size(); ++i) {
+    auto const& contri = out_contribution[i];
+    // shift 1 for bias, as test tree is a decision dump, only global bias is
+    // filled with LeafValue().
+    if ((i + 1) % (kCols + 1) == 0) {
+      ASSERT_EQ(out_contribution.back(), 1.5f);
+    } else {
+      ASSERT_EQ(contri, 0);
+    }
+  }
+}
+
 TEST(Predictor, PredictionCache) {
   size_t constexpr kRows = 16, kCols = 4;
 
@@ -486,21 +559,20 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   size_t constexpr kRows = 512, kCols = 128, kIters = 4;
   auto Xy = RandomDataGenerator(kRows, kCols, sparsity).GenerateDMatrix(true);
   auto learner = LearnerForTest(ctx, Xy, kIters);
-
   HostDeviceVector<float> sparse_predt;
 
   Json model{Object{}};
   learner->SaveModel(&model);
-
   learner.reset(Learner::Create({Xy}));
   learner->LoadModel(model);
+  learner->SetParam("device", ctx->DeviceName());
+  learner->Configure();
 
   if (ctx->IsCUDA()) {
     learner->SetParam("tree_method", "gpu_hist");
     learner->SetParam("gpu_id", std::to_string(ctx->gpu_id));
   }
   learner->Predict(Xy, false, &sparse_predt, 0, 0);
-
   HostDeviceVector<float> with_nan(kRows * kCols, std::numeric_limits<float>::quiet_NaN());
   auto &h_with_nan = with_nan.HostVector();
   for (auto const &page : Xy->GetBatches<SparsePage>()) {
@@ -524,7 +596,6 @@ void TestSparsePrediction(Context const *ctx, float sparsity) {
   HostDeviceVector<float> *p_dense_predt;
   learner->InplacePredict(dense, PredictionType::kValue, std::numeric_limits<float>::quiet_NaN(),
                           &p_dense_predt, 0, 0);
-
   auto const &dense_predt = *p_dense_predt;
   if (ctx->IsCPU()) {
     ASSERT_EQ(dense_predt.HostVector(), sparse_predt.HostVector());

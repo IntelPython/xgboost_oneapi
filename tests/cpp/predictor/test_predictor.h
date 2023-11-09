@@ -35,7 +35,7 @@ inline auto CreatePredictorForTest(Context const* ctx) {
   if (ctx->IsCPU()) {
     return Predictor::Create("cpu_predictor", ctx);
   } else if (ctx->IsSycl()) {
-    return Predictor::Create("oneapi_predictor", ctx);
+    return Predictor::Create("sycl_predictor", ctx);
   } else {
     return Predictor::Create("gpu_predictor", ctx);
   }

@@ -164,10 +164,10 @@ inline void AssertGPUSupport() {
 #endif  // XGBOOST_USE_CUDA
 }
 
-inline void AssertOneAPISupport() {
-#ifndef XGBOOST_USE_ONEAPI
-    LOG(FATAL) << "XGBoost version not compiled with OneAPI support.";
-#endif  // XGBOOST_USE_ONEAPI
+inline void AssertSYCLSupport() {
+#ifndef XGBOOST_USE_SYCL
+    LOG(FATAL) << "XGBoost version not compiled with SYCL support.";
+#endif  // XGBOOST_USE_SYCL
 }
 
 void SetDevice(std::int32_t device);

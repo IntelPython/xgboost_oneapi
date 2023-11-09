@@ -34,7 +34,7 @@ ObjFunction* ObjFunction::Create(const std::string& name, Context const* ctx) {
 
 // Return sycl specific implementation name if possible.
 std::string ObjFunction::GetSyclImplementationName(const std::string& name) {
-  const std::string sycl_postfix = "_oneapi";
+  const std::string sycl_postfix = "_sycl";
   auto *e = ::dmlc::Registry< ::xgboost::ObjFunctionReg>::Get()->Find(name + sycl_postfix);
   if (e != nullptr) {
     // Function has specific sycl implementation

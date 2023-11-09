@@ -4,131 +4,48 @@
 #include <gtest/gtest.h>
 #include <xgboost/objective.h>
 #include <xgboost/context.h>
-#include <xgboost/json.h>
+
 #include "../helpers.h"
+#include "../objective/test_regression_obj.h"
+
 namespace xgboost {
 
 TEST(SyclObjective, LinearRegressionGPair) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  std::vector<std::pair<std::string, std::string>> args;
-
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:squarederror_oneapi", &ctx)
-  };
-
-  obj->Configure(args);
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,    1,     0,  0.1f,  0.9f,  1},
-                   {0,    0,    0,    0,     1,     1,     1,  1},
-                   {1,    1,    1,    1,     1,     1,     1,  1},
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f,  0},
-                   {1,    1,    1,    1,     1,     1,     1,  1});
-  CheckObjFunction(obj,
-                   {0, 0.1f, 0.9f,    1,     0,  0.1f,  0.9f,  1},
-                   {0,    0,    0,    0,     1,     1,     1,  1},
-                   {},  // empty weight
-                   {0, 0.1f, 0.9f, 1.0f, -1.0f, -0.9f, -0.1f,  0},
-                   {1,    1,    1,    1,     1,     1,     1,  1});
-  ASSERT_NO_THROW(obj->DefaultEvalMetric());
+  TestLinearRegressionGPair(&ctx);
 }
 
 TEST(SyclObjective, SquaredLog) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  std::vector<std::pair<std::string, std::string>> args;
-
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:squaredlogerror_oneapi", &ctx) };
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:squaredlogerror_oneapi");
-
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // weights
-                   {-0.5435f, -0.4257f, -0.25475f, -0.05855f, 0.1009f},
-                   { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
-  CheckObjFunction(obj,
-                   {0.1f, 0.2f, 0.4f, 0.8f, 1.6f},  // pred
-                   {1.0f, 1.0f, 1.0f, 1.0f, 1.0f},  // labels
-                   {},                              // empty weights
-                   {-0.5435f, -0.4257f, -0.25475f, -0.05855f, 0.1009f},
-                   { 1.3205f,  1.0492f,  0.69215f,  0.34115f, 0.1091f});
-  ASSERT_EQ(obj->DefaultEvalMetric(), std::string{"rmsle"});
+  TestSquaredLog(&ctx);
 }
 
 TEST(SyclObjective, LogisticRegressionGPair) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj { ObjFunction::Create("reg:logistic_oneapi", &ctx) };
-
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic_oneapi");
-
-  CheckObjFunction(obj,
-                   {   0,   0.1f,  0.9f,     1,     0,   0.1f,   0.9f,      1},  // preds
-                   {   0,      0 ,    0,     0,     1,      1,      1,      1},  // labels
-                   {   1,      1,     1,     1,     1,      1,      1,      1},  // weights
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},  // out_grad
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f}); // out_hess
+  TestLogisticRegressionGPair(&ctx);
 }
 
 TEST(SyclObjective, LogisticRegressionBasic) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction> obj {
-    ObjFunction::Create("reg:logistic_oneapi", &ctx)
-  };
 
-  obj->Configure(args);
-  CheckConfigReload(obj, "reg:logistic_oneapi");
-
-  // test label validation
-  EXPECT_ANY_THROW(CheckObjFunction(obj, {0}, {10}, {1}, {0}, {0}))
-    << "Expected error when label not in range [0,1f] for LogisticRegression";
-
-  // test ProbToMargin
-  EXPECT_NEAR(obj->ProbToMargin(0.1f), -2.197f, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.5f), 0, 0.01f);
-  EXPECT_NEAR(obj->ProbToMargin(0.9f), 2.197f, 0.01f);
-  EXPECT_ANY_THROW(obj->ProbToMargin(10))
-    << "Expected error when base_score not in range [0,1f] for LogisticRegression";
-
-  // test PredTransform
-  HostDeviceVector<bst_float> io_preds = {0, 0.1f, 0.5f, 0.9f, 1};
-  std::vector<bst_float> out_preds = {0.5f, 0.524f, 0.622f, 0.710f, 0.731f};
-  obj->PredTransform(&io_preds);
-  auto& preds = io_preds.HostVector();
-  for (int i = 0; i < static_cast<int>(io_preds.Size()); ++i) {
-    EXPECT_NEAR(preds[i], out_preds[i], 0.01f);
-  }
+  TestLogisticRegressionBasic(&ctx);
 }
 
 TEST(SyclObjective, LogisticRawGPair) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-  std::vector<std::pair<std::string, std::string>> args;
-  std::unique_ptr<ObjFunction>  obj {
-    ObjFunction::Create("binary:logitraw_oneapi", &ctx)
-  };
-
-  obj->Configure(args);
-
-  CheckObjFunction(obj,
-                   {   0,  0.1f,  0.9f,    1,    0,   0.1f,   0.9f,     1},
-                   {   0,    0,    0,    0,    1,     1,     1,     1},
-                   {   1,    1,    1,    1,    1,     1,     1,     1},
-                   { 0.5f, 0.52f, 0.71f, 0.73f, -0.5f, -0.47f, -0.28f, -0.26f},
-                   {0.25f, 0.24f, 0.20f, 0.19f, 0.25f,  0.24f,  0.20f,  0.19f});
+  TestsLogisticRawGPair(&ctx);
 }
 
 TEST(SyclObjective, CPUvsSycl) {
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
   ObjFunction * obj_sycl =
-      ObjFunction::Create("reg:squarederror_oneapi", &ctx);
+      ObjFunction::Create("reg:squarederror_sycl", &ctx);
 
   ctx = ctx.MakeCPU();
   ObjFunction * obj_cpu =

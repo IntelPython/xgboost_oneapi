@@ -92,12 +92,16 @@ jobs:
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |
+        source /opt/intel/oneapi/compiler/latest/env/vars.sh
+        source /opt/intel/oneapi/tbb/latest/env/vars.sh
         mkdir build
         cd build
         cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON
         make -j$(nproc)
     - name: Run gtest binary
       run: |
+        source /opt/intel/oneapi/compiler/latest/env/vars.sh
+        source /opt/intel/oneapi/tbb/latest/env/vars.sh
         cd build
         ./testxgboost --gtest_filter=Sycl*
 

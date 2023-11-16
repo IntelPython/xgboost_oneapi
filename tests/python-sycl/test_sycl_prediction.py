@@ -82,7 +82,7 @@ class TestSYCLPredict(unittest.TestCase):
         bst = xgb.train(params, dtrain)
         cpu_predict = bst.predict(dtest)
 
-        bst.set_param({"device": "sycl:gpu"})
+        bst.set_param({"device": "sycl"})
 
         predict0 = bst.predict(dtest)
         predict1 = bst.predict(dtest)
@@ -110,7 +110,7 @@ class TestSYCLPredict(unittest.TestCase):
         cpu_test_score = m.score(X_test, y_test)
 
         # Now with sycl_predictor
-        params['device'] = 'sycl:gpu'
+        params['device'] = 'sycl'
         m.set_params(**params)
 
         # m = xgb.XGBRegressor(**params).fit(X_train, y_train)
@@ -125,7 +125,7 @@ class TestSYCLPredict(unittest.TestCase):
            tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None)
     def test_shap(self, num_rounds, dataset, param):
-        param.update({"device": "sycl:gpu"})
+        param.update({"device": "sycl"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
@@ -139,7 +139,7 @@ class TestSYCLPredict(unittest.TestCase):
            tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
-        param.update({"device": "sycl:gpu"})
+        param.update({"device": "sycl"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)

@@ -275,7 +275,7 @@ jobs:
         cache-downloads: true
         cache-env: true
         environment-name: linux_sycl_test
-        environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
 
     - name: Display Conda env
       run: |

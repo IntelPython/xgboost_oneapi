@@ -1,4 +1,4 @@
-name: linux_cpu_test
+name: linux_sycl_test
 channels:
 - conda-forge
 - intel

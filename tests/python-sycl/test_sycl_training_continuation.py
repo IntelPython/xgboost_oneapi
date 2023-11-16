@@ -12,7 +12,7 @@ class TestSYCLTrainingContinuation:
         X = np.random.randn(kRows, kCols)
         y = np.random.randn(kRows)
         dtrain = xgb.DMatrix(X, y)
-        params = {'device': 'sycl:gpu', 'max_depth': '2',
+        params = {'device': 'sycl', 'max_depth': '2',
                   'gamma': '0.1', 'alpha': '0.01',
                   'enable_experimental_json_serialization': use_json}
         bst_0 = xgb.train(params, dtrain, num_boost_round=64)

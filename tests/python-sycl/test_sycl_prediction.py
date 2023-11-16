@@ -48,7 +48,7 @@ class TestSYCLPredict(unittest.TestCase):
                 cpu_pred_test = bst.predict(dtest, output_margin=True)
                 cpu_pred_val = bst.predict(dval, output_margin=True)
 
-                bst.set_param({"device": "sycl:gpu"})
+                bst.set_param({"device": "sycl"})
                 sycl_pred_train = bst.predict(dtrain, output_margin=True)
                 sycl_pred_test = bst.predict(dtest, output_margin=True)
                 sycl_pred_val = bst.predict(dval, output_margin=True)

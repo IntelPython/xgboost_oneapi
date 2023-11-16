@@ -23,7 +23,7 @@ def test_sycl_binary_classification():
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):
             xgb_model = cls(
-                random_state=42, device='sycl:gpu',
+                random_state=42, device='sycl',
                 n_estimators=4).fit(X[train_index], y[train_index])
             preds = xgb_model.predict(X[test_index])
             labels = y[test_index]

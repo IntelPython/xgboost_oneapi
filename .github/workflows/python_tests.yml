@@ -256,6 +256,64 @@ jobs:
       run: |
         pytest -s -v -rxXs --durations=0 ./tests/test_distributed/test_with_spark
 
+  python-sycl-tests-on-ubuntu:
+    name: Test XGBoost Python package with SYCL on ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        config:
+          - {os: ubuntu-latest, python-version: "3.8"}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_cpu_test
+        environment-file: tests/ci_build/conda_env/linux_cpu_test.yml
+
+    - name: Display Conda env
+      run: |
+        conda info
+        conda list
+
+    - name: Install SYCL runtime
+      run: |
+        sudo apt-get update
+        wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
+        sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
+        rm GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
+        echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        sudo add-apt-repository -y "deb https://apt.repos.intel.com/oneapi all main"
+        sudo apt-get update
+        sudo apt-get install -y intel-dpcpp-cpp-compiler-2023.2.1
+
+    - name: Build XGBoost on Ubuntu
+      run: |
+        source /opt/intel/oneapi/compiler/latest/env/vars.sh
+        source /opt/intel/oneapi/tbb/latest/env/vars.sh
+        icpx --version
+        sycl-ls
+        mkdir build
+        cd build
+        cmake .. -DPLUGIN_SYCL=ON -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        make -j$(nproc)
+
+    - name: Install Python package
+      run: |
+        cd python-package
+        python --version
+        pip install -v .
+
+    - name: Test Python package
+      run: |
+        pytest -s -v -rxXs --durations=0 ./tests/python-sycl/
+
   python-system-installation-on-ubuntu:
     name: Test XGBoost Python package System Installation on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

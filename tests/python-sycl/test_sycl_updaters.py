@@ -39,7 +39,7 @@ class TestSYCLUpdaters:
     @settings(deadline=None)
     def test_sycl_hist(self, param, num_rounds, dataset):
         param['tree_method'] = 'hist'
-        param['device'] = 'sycl:gpu'
+        param['device'] = 'sycl'
         param['verbosity'] = 0
         param = dataset.set_params(param)
         result = train_result(param, dataset.get_dmat(), num_rounds)

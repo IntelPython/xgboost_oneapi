@@ -86,6 +86,8 @@ jobs:
         sudo apt-get install -y intel-dpcpp-cpp-compiler-2023.2.1
         source /opt/intel/oneapi/compiler/latest/env/vars.sh
         source /opt/intel/oneapi/tbb/latest/env/vars.sh
+        icpx --version
+        sycl-ls
 
     - name: Build and install XGBoost
       shell: bash -l {0}

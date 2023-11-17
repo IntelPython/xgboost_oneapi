@@ -53,7 +53,7 @@ class RegLossObj : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-  if (info.labels.Size() == 0U) return;
+  if (info.labels.Size() == 0) return;
   CHECK_EQ(preds.Size(), info.labels.Size())
       << " " << "labels are not correctly provided"
       << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "
@@ -123,6 +123,7 @@ class RegLossObj : public ObjFunction {
 
   void PredTransform(HostDeviceVector<float> *io_preds) const override {
     size_t const ndata = io_preds->Size();
+    if (ndata == 0) return;
     ::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 
     qu_.submit([&](::sycl::handler& cgh) {

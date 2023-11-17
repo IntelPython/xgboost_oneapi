@@ -627,7 +627,7 @@ bool QuantileHistMaker::Builder<GradientSumT>::UpdatePredictionCache(
 
   const size_t stride = out_preds.Stride(0);
   const int buffer_size = out_preds.Size()*stride - stride + 1;
-  if (buffer_size == 0) return;
+  if (buffer_size == 0) return true;
   ::sycl::buffer<float, 1> out_preds_buf(&out_preds(0), buffer_size);
 
   size_t n_nodes = row_set_collection_.Size();

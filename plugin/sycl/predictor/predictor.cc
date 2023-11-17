@@ -184,9 +184,9 @@ void DevicePredictInternal(::sycl::queue qu,
                            const gbm::GBTreeModel& model,
                            size_t tree_begin,
                            size_t tree_end) {
-  if (tree_end - tree_begin == 0) {
-    return;
-  }
+  if (tree_end - tree_begin == 0) return;
+  if (out_preds->HostVector().size() == 0) return;
+
   DeviceModel device_model;
   device_model.Init(qu, model, tree_begin, tree_end);
 

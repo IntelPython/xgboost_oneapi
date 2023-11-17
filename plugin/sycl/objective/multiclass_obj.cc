@@ -102,9 +102,9 @@ class SoftmaxMultiClassObj : public ObjFunction {
                    const MetaInfo& info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-    if (info.labels.Size() == 0) {
-      return;
-    }
+    if (preds.Size() == 0) return;
+    if (info.labels.Size() == 0) return;
+
     CHECK(preds.Size() == (static_cast<size_t>(param_.num_class) * info.labels.Size()))
         << "SoftmaxMultiClassObj: label size and pred size does not match.\n"
         << "label.Size() * num_class: "
@@ -187,6 +187,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
 
   inline void Transform(HostDeviceVector<bst_float> *io_preds, bool prob) const {
+    if (io_preds->Size() == 0) return;
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);

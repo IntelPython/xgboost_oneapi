@@ -53,9 +53,7 @@ class RegLossObj : public ObjFunction {
                    const MetaInfo &info,
                    int iter,
                    HostDeviceVector<GradientPair>* out_gpair) override {
-  if (info.labels.Size() == 0U) {
-    LOG(WARNING) << "Label set is empty.";
-  }
+  if (info.labels.Size() == 0U) return;
   CHECK_EQ(preds.Size(), info.labels.Size())
       << " " << "labels are not correctly provided"
       << "preds.size=" << preds.Size() << ", label.size=" << info.labels.Size() << ", "

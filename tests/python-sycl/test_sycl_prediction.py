@@ -125,7 +125,9 @@ class TestSYCLPredict(unittest.TestCase):
            tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None)
     def test_shap(self, num_rounds, dataset, param):
-        param.update({"device": "cpu"})
+        if dataset.name.endswith("-l1"):  # not supported by the exact tree method
+            return
+        param.update({"tree_method": "hist", "device": "cpu"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)
@@ -140,7 +142,9 @@ class TestSYCLPredict(unittest.TestCase):
            tm.make_dataset_strategy(), shap_parameter_strategy)
     @settings(deadline=None, max_examples=20)
     def test_shap_interactions(self, num_rounds, dataset, param):
-        param.update({"device": "cpu"})
+        if dataset.name.endswith("-l1"):  # not supported by the exact tree method
+            return
+        param.update({"tree_method": "hist", "device": "cpu"})
         param = dataset.set_params(param)
         dmat = dataset.get_dmat()
         bst = xgb.train(param, dmat, num_rounds)

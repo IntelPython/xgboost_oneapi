@@ -70,6 +70,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
+        python-version: ["3.8"]
     steps:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
@@ -93,7 +94,7 @@ jobs:
         cd build
         export CXX=g++
         export CC=gcc
-        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON
+        cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX
         make -j$(nproc)
 
     - name: Run gtest binary

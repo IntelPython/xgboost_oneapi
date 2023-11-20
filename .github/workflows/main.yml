@@ -74,35 +74,30 @@ jobs:
     - uses: actions/checkout@e2f20e631ae6d7dd3b768f56a5d2af784dd54791 # v2.5.0
       with:
         submodules: 'true'
-    - name: Install SYCL runtime
+    - uses: mamba-org/provision-with-micromamba@f347426e5745fe3dfc13ec5baf20496990d0281f # v14
+      with:
+        cache-downloads: true
+        cache-env: true
+        environment-name: linux_sycl_test
+        environment-file: tests/ci_build/conda_env/linux_sycl_test.yml
+
+    - name: Display Conda env
       run: |
-        sudo apt-get update
-        wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
-        sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
-        rm GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
-        echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
-        sudo add-apt-repository -y "deb https://apt.repos.intel.com/oneapi all main"
-        sudo apt-get update
-        sudo apt-get install -y intel-dpcpp-cpp-compiler-2023.2.1
-        source /opt/intel/oneapi/compiler/latest/env/vars.sh
-        source /opt/intel/oneapi/tbb/latest/env/vars.sh
-        icpx --version
-        sycl-ls
+        conda info
+        conda list
 
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |
-        source /opt/intel/oneapi/compiler/latest/env/vars.sh
-        source /opt/intel/oneapi/tbb/latest/env/vars.sh
         mkdir build
         cd build
+        export CXX=g++
+        export CC=gcc
         cmake .. -DGOOGLE_TEST=ON -DUSE_DMLC_GTEST=ON -DPLUGIN_SYCL=ON
         make -j$(nproc)
 
     - name: Run gtest binary
       run: |
-        source /opt/intel/oneapi/compiler/latest/env/vars.sh
-        source /opt/intel/oneapi/tbb/latest/env/vars.sh
         cd build
         ./testxgboost --gtest_filter=Sycl*
 

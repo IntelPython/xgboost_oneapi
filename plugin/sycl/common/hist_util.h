@@ -2,8 +2,8 @@
  * Copyright 2017-2023 by Contributors
  * \file hist_util.h
  */
-#ifndef XGBOOST_COMMON_HIST_UTIL_SYCL_H_
-#define XGBOOST_COMMON_HIST_UTIL_SYCL_H_
+#ifndef PLUGIN_SYCL_COMMON_HIST_UTIL_H_
+#define PLUGIN_SYCL_COMMON_HIST_UTIL_H_
 
 #include <vector>
 
@@ -12,7 +12,7 @@
 
 #include "../../src/common/hist_util.h"
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -31,14 +31,14 @@ using AtomicRef = ::sycl::atomic_ref<T,
  * \brief SYCL implementation of HistogramCuts stored in USM buffers to provide access from device kernels
  */
 class HistogramCuts {
-protected:
+ protected:
   using BinIdx = uint32_t;
 
-public:
+ public:
   HistogramCuts() {}
 
-  HistogramCuts(::sycl::queue qu) {
-    cut_ptrs_.Resize(qu_, 1, 0);
+  explicit HistogramCuts(::sycl::queue qu) {
+    cut_ptrs_.Resize(&qu_, 1, 0);
   }
 
   ~HistogramCuts() {
@@ -46,9 +46,9 @@ public:
 
   void Init(::sycl::queue qu, xgboost::common::HistogramCuts const& cuts) {
     qu_ = qu;
-    cut_values_.Init(qu_, cuts.cut_values_.HostVector());
-    cut_ptrs_.Init(qu_, cuts.cut_ptrs_.HostVector());
-    min_vals_.Init(qu_, cuts.min_vals_.HostVector());
+    cut_values_.Init(&qu_, cuts.cut_values_.HostVector());
+    cut_ptrs_.Init(&qu_, cuts.cut_ptrs_.HostVector());
+    min_vals_.Init(&qu_, cuts.min_vals_.HostVector());
   }
 
   // Getters for USM buffers to pass pointers into device kernels
@@ -56,7 +56,7 @@ public:
   const USMVector<float>&    Values()    const { return cut_values_; }
   const USMVector<float>&    MinValues() const { return min_vals_;   }
 
-private:
+ private:
   USMVector<bst_float> cut_values_;
   USMVector<uint32_t> cut_ptrs_;
   USMVector<float> min_vals_;
@@ -128,11 +128,11 @@ struct Index {
   }
 
   void Resize(const size_t nBytesData) {
-    data_.Resize(qu_, nBytesData);
+    data_.Resize(&qu_, nBytesData);
   }
 
   void ResizeOffset(const size_t nDisps) {
-    offset_.Resize(qu_, nDisps);
+    offset_.Resize(&qu_, nDisps);
     p_ = nDisps;
   }
 
@@ -162,7 +162,8 @@ struct Index {
   using Func = uint32_t (*)(const uint8_t*, size_t);
 
   USMVector<uint8_t, MemoryType::on_device> data_;
-  USMVector<uint32_t, MemoryType::on_device> offset_;  // size of this field is equal to number of features
+  // size of this field is equal to number of features
+  USMVector<uint32_t, MemoryType::on_device> offset_;
   BinTypeSize binTypeSize_ {BinTypeSize::kUint8BinsTypeSize};
   size_t p_ {1};
   Func func_;
@@ -194,7 +195,8 @@ struct GHistIndexMatrix {
   size_t row_stride;
 
   // Create a global histogram matrix based on a given DMatrix device wrapper
-  void Init(::sycl::queue qu, Context const * ctx, const sycl::DeviceMatrix& p_fmat_device, int max_num_bins);
+  void Init(::sycl::queue qu, Context const * ctx,
+            const sycl::DeviceMatrix& p_fmat_device, int max_num_bins);
 
   template <typename BinIdxType>
   void SetIndexData(::sycl::queue qu, xgboost::common::Span<BinIdxType> index_data_span,
@@ -204,13 +206,13 @@ struct GHistIndexMatrix {
   void ResizeIndex(const size_t n_offsets, const size_t n_index,
                    const bool isDense);
 
-  inline void GetFeatureCounts(std::vector<size_t>& counts) const {
+  inline void GetFeatureCounts(std::vector<size_t>* counts) const {
     auto nfeature = cut_device.Ptrs().Size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
       auto ibegin = cut_device.Ptrs()[fid];
       auto iend = cut_device.Ptrs()[fid + 1];
       for (auto i = ibegin; i < iend; ++i) {
-        counts[fid] += hit_count[i];
+        (*counts)[fid] += hit_count[i];
       }
     }
   }
@@ -229,7 +231,7 @@ class ColumnMatrix;
  */
 template<typename GradientSumT>
 void InitHist(::sycl::queue qu,
-              GHistRow<GradientSumT, MemoryType::on_device>& hist,
+              GHistRow<GradientSumT, MemoryType::on_device>* hist,
               size_t size);
 
 /*!
@@ -237,7 +239,7 @@ void InitHist(::sycl::queue qu,
  */
 template<typename GradientSumT>
 void CopyHist(::sycl::queue qu,
-              GHistRow<GradientSumT, MemoryType::on_device>& dst,
+              GHistRow<GradientSumT, MemoryType::on_device>* dst,
               const GHistRow<GradientSumT, MemoryType::on_device>& src,
               size_t size);
 
@@ -246,10 +248,10 @@ void CopyHist(::sycl::queue qu,
  */
 template<typename GradientSumT>
 ::sycl::event SubtractionHist(::sycl::queue qu,
-                            GHistRow<GradientSumT, MemoryType::on_device>& dst,
-                            const GHistRow<GradientSumT, MemoryType::on_device>& src1,
-                            const GHistRow<GradientSumT, MemoryType::on_device>& src2,
-                            size_t size, ::sycl::event event_priv);
+                              GHistRow<GradientSumT, MemoryType::on_device>* dst,
+                              const GHistRow<GradientSumT, MemoryType::on_device>& src1,
+                              const GHistRow<GradientSumT, MemoryType::on_device>& src2,
+                              size_t size, ::sycl::event event_priv);
 
 /*!
  * \brief Histograms of gradient statistics for multiple nodes
@@ -287,7 +289,8 @@ class HistCollection {
     if (nid >= data_.size()) {
       data_.resize(nid + 1);
     }
-    return data_[nid].ResizeAsync(qu_, nbins_, xgboost::detail::GradientPairInternal<GradientSumT>(0, 0));
+    return data_[nid].ResizeAsync(&qu_, nbins_,
+                                  xgboost::detail::GradientPairInternal<GradientSumT>(0, 0));
   }
 
   void Wait_and_throw() {
@@ -320,7 +323,7 @@ class ParallelGHistBuilder {
   }
 
   void Reset(size_t nblocks) {
-    hist_device_buffer_.Resize(qu_, nblocks * nbins_ * 2);
+    hist_device_buffer_.Resize(&qu_, nblocks * nbins_ * 2);
   }
 
   GHistRowT& GetDeviceBuffer() {
@@ -353,17 +356,17 @@ class GHistBuilder {
 
   // Construct a histogram via histogram aggregation
   ::sycl::event BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
-                        const RowSetCollection::Elem& row_indices,
-                        const GHistIndexMatrix& gmat,
-                        GHistRowT<MemoryType::on_device>& HistCollection,
-                        bool isDense,
-                        GHistRowT<MemoryType::on_device>& hist_buffer,
-                        ::sycl::event evens);
+                          const RowSetCollection::Elem& row_indices,
+                          const GHistIndexMatrix& gmat,
+                          GHistRowT<MemoryType::on_device>* HistCollection,
+                          bool isDense,
+                          GHistRowT<MemoryType::on_device>* hist_buffer,
+                          ::sycl::event evens);
 
   // Construct a histogram via subtraction trick
-  void SubtractionTrick(GHistRowT<MemoryType::on_device>& self,
-                        GHistRowT<MemoryType::on_device>& sibling,
-                        GHistRowT<MemoryType::on_device>& parent);
+  void SubtractionTrick(GHistRowT<MemoryType::on_device>* self,
+                        const GHistRowT<MemoryType::on_device>& sibling,
+                        const GHistRowT<MemoryType::on_device>& parent);
 
   uint32_t GetNumBins() const {
       return nbins_;
@@ -378,4 +381,4 @@ class GHistBuilder {
 }  // namespace common
 }  // namespace sycl
 }  // namespace xgboost
-#endif  // XGBOOST_COMMON_HIST_UTIL_SYCL_H_
+#endif  // PLUGIN_SYCL_COMMON_HIST_UTIL_H_

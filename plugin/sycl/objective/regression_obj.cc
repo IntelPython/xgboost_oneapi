@@ -1,13 +1,19 @@
+/*!
+ * Copyright 2015-2023 by Contributors
+ * \file regression_obj.cc
+ * \brief Definition of regression objectives.
+ */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/logging.h>
 #include <xgboost/objective.h>
 #pragma GCC diagnostic pop
+#include <rabit/rabit.h>
+
 #include <cmath>
 #include <memory>
 #include <vector>
-#include <rabit/rabit.h>
 
 #include "xgboost/host_device_vector.h"
 #include "xgboost/json.h"
@@ -19,7 +25,7 @@
 #include "regression_loss.h"
 #include "../device_manager.h"
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -62,7 +68,7 @@ class RegLossObj : public ObjFunction {
   size_t const ndata = preds.Size();
   out_gpair->Resize(ndata);
 
-  // TODO: add label_correct check
+  // TODO(razdoburdin): add label_correct check
   label_correct_.Resize(1);
   label_correct_.Fill(1);
 
@@ -84,13 +90,13 @@ class RegLossObj : public ObjFunction {
 
   int flag = 1;
   {
-    ::sycl::buffer<int, 1> additional_input_buf(&flag, 1);
+    ::sycl::buffer<int, 1> flag_buf(&flag, 1);
     qu_.submit([&](::sycl::handler& cgh) {
-        auto preds_acc            = preds_buf.get_access<::sycl::access::mode::read>(cgh);
-        auto labels_acc           = labels_buf.get_access<::sycl::access::mode::read>(cgh);
-        auto weights_acc          = weights_buf.get_access<::sycl::access::mode::read>(cgh);
-        auto out_gpair_acc        = out_gpair_buf.get_access<::sycl::access::mode::write>(cgh);
-        auto additional_input_acc = additional_input_buf.get_access<::sycl::access::mode::write>(cgh);
+        auto preds_acc     = preds_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto labels_acc    = labels_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto weights_acc   = weights_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto out_gpair_acc = out_gpair_buf.get_access<::sycl::access::mode::write>(cgh);
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::write>(cgh);
         cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
           int idx = pid[0];
           bst_float p = Loss::PredTransform(preds_acc[idx]);
@@ -101,19 +107,18 @@ class RegLossObj : public ObjFunction {
           }
           if (!Loss::CheckLabel(label)) {
             // If there is an incorrect label, the host code will know.
-            additional_input_acc[0] = 0;
+            flag_buf_acc[0] = 0;
           }
           out_gpair_acc[idx] = GradientPair(Loss::FirstOrderGradient(p, label) * w,
                                             Loss::SecondOrderGradient(p, label) * w);
         });
       }).wait();
   }
-  // additional_input_buf is destroyed, content is copyed to the "flag"
+  // flag_buf is destroyed, content is copyed to the "flag"
 
     if (flag == 0) {
       LOG(FATAL) << Loss::LabelErrorMsg();
     }
-
   }
 
  public:
@@ -168,7 +173,10 @@ class RegLossObj : public ObjFunction {
 // register the objective functions
 DMLC_REGISTER_PARAMETER(RegLossParam);
 
-// TODO: Find a better way to dispatch names of SYCL kernels with various template parameters of loss function
+/* TODO(razdoburdin):
+ * Find a better way to dispatch names of SYCL kernels with various 
+ * template parameters of loss function
+ */
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression, LinearSquareLoss::Name())
 .describe("Regression with squared error with SYCL backend.")
 .set_body([]() { return new RegLossObj<LinearSquareLoss>(); });

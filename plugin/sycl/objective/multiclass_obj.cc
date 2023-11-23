@@ -3,15 +3,16 @@
  * \file multiclass_obj.cc
  * \brief Definition of multi-class classification objectives.
  */
-#include <vector>
-#include <algorithm>
-#include <limits>
-#include <utility>
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <rabit/rabit.h>
 #pragma GCC diagnostic pop
+
+#include <vector>
+#include <algorithm>
+#include <limits>
+#include <utility>
 
 #include "xgboost/parameter.h"
 #pragma GCC diagnostic push
@@ -23,7 +24,7 @@
 #include "xgboost/json.h"
 
 #include "../device_manager.h"
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 
 namespace xgboost {
@@ -134,13 +135,13 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
     int flag = 1;
     {
-      ::sycl::buffer<int, 1> additional_input_buf(&flag, 1);
+      ::sycl::buffer<int, 1> flag_buf(&flag, 1);
       qu_.submit([&](::sycl::handler& cgh) {
-        auto preds_acc            = preds_buf.template get_access<::sycl::access::mode::read>(cgh);
-        auto labels_acc           = labels_buf.template get_access<::sycl::access::mode::read>(cgh);
-        auto weights_acc          = weights_buf.template get_access<::sycl::access::mode::read>(cgh);
-        auto out_gpair_acc        = out_gpair_buf.template get_access<::sycl::access::mode::write>(cgh);
-        auto additional_input_acc = additional_input_buf.template get_access<::sycl::access::mode::write>(cgh);
+        auto preds_acc     = preds_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto labels_acc    = labels_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto weights_acc   = weights_buf.get_access<::sycl::access::mode::read>(cgh);
+        auto out_gpair_acc = out_gpair_buf.get_access<::sycl::access::mode::write>(cgh);
+        auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::write>(cgh);
         cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
           int idx = pid[0];
 
@@ -155,7 +156,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           for (int k = 0; k < nclass; k++) { wsum += ::sycl::exp(point[k] - wmax); }
           auto label = labels_acc[idx];
           if (label < 0 || label >= nclass) {
-            additional_input_acc[0] = 0;
+            flag_buf_acc[0] = 0;
             label = 0;
           }
           bst_float wt = is_null_weight ? 1.0f : weights_acc[idx];
@@ -169,7 +170,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
         });
       }).wait();
     }
-    // additional_input_buf is destroyed, content is copyed to the "flag"
+    // flag_buf is destroyed, content is copyed to the "flag"
 
     if (flag == 0) {
       LOG(FATAL) << "SYCL::SoftmaxMultiClassObj: label must be in [0, num_class).";
@@ -199,7 +200,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
       if (prob) {
         qu_.submit([&](::sycl::handler& cgh) {
-          auto io_preds_acc = io_preds_buf.template get_access<::sycl::access::mode::read_write>(cgh);
+          auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
             int idx = pid[0];
             bst_float * point = &io_preds_acc[idx * nclass];
@@ -211,8 +212,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
 
         qu_.submit([&](::sycl::handler& cgh) {
-          auto io_preds_acc = io_preds_buf.template get_access<::sycl::access::mode::read>(cgh);
-          auto max_preds_acc = max_preds_buf.template get_access<::sycl::access::mode::read_write>(cgh);
+          auto io_preds_acc = io_preds_buf.get_access<::sycl::access::mode::read>(cgh);
+          auto max_preds_acc = max_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
           cgh.parallel_for<>(::sycl::range<1>(ndata), [=](::sycl::id<1> pid) {
             int idx = pid[0];
             bst_float const * point = &io_preds_acc[idx * nclass];

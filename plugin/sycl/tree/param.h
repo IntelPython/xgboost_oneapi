@@ -1,8 +1,8 @@
 /*!
  * Copyright 2014-2023 by Contributors
  */
-#ifndef XGBOOST_TREE_PARAM_SYCL_H_
-#define XGBOOST_TREE_PARAM_SYCL_H_
+#ifndef PLUGIN_SYCL_TREE_PARAM_H_
+#define PLUGIN_SYCL_TREE_PARAM_H_
 
 
 #include <cmath>
@@ -35,7 +35,7 @@ struct TrainParam {
   TrainParam() {}
 
 
-  TrainParam(const xgboost::tree::TrainParam& param) {
+  explicit TrainParam(const xgboost::tree::TrainParam& param) {
     reg_lambda = param.reg_lambda;
     reg_alpha = param.reg_alpha;
     min_child_weight = param.min_child_weight;
@@ -217,4 +217,4 @@ using SplitEntry = SplitEntryContainer<GradStats<GradType>>;
 }  // namespace tree
 }  // namespace sycl
 }  // namespace xgboost
-#endif  // XGBOOST_TREE_PARAM_SYCL_H_
+#endif  // PLUGIN_SYCL_TREE_PARAM_H_

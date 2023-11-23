@@ -1,14 +1,14 @@
 /*!
  * Copyright 2017-2023 XGBoost contributors
  */
-#ifndef XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
-#define XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
+#ifndef PLUGIN_SYCL_OBJECTIVE_REGRESSION_LOSS_H_
+#define PLUGIN_SYCL_OBJECTIVE_REGRESSION_LOSS_H_
 
 #include <dmlc/omp.h>
 #include <xgboost/logging.h>
 #include <algorithm>
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -43,7 +43,7 @@ struct LinearSquareLoss {
   static ObjInfo Info() { return {ObjInfo::kRegression, true, false}; }
 };
 
-// TODO: SYCL does not fully support std math inside offloaded kernels
+// TODO(razdoburdin): SYCL does not fully support std math inside offloaded kernels
 struct SquaredLogError {
   static bst_float PredTransform(bst_float x) { return x; }
   static bool CheckLabel(bst_float label) {
@@ -152,4 +152,4 @@ struct LogisticRaw : public LogisticRegression {
 }  // namespace sycl
 }  // namespace xgboost
 
-#endif  // XGBOOST_OBJECTIVE_REGRESSION_LOSS_SYCL_H_
+#endif  // PLUGIN_SYCL_OBJECTIVE_REGRESSION_LOSS_H_

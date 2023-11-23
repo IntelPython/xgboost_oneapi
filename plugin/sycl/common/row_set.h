@@ -1,8 +1,8 @@
 /*!
  * Copyright 2017-2023 XGBoost contributors
  */
-#ifndef XGBOOST_COMMON_ROW_SET_SYCL_H_
-#define XGBOOST_COMMON_ROW_SET_SYCL_H_
+#ifndef PLUGIN_SYCL_COMMON_ROW_SET_H_
+#define PLUGIN_SYCL_COMMON_ROW_SET_H_
 
 
 #include <xgboost/data.h>
@@ -10,12 +10,9 @@
 #include <vector>
 #include <utility>
 
-
 #include "../data.h"
 
-
-#include "CL/sycl.hpp"
-
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -31,7 +28,7 @@ class RowSetCollection {
   struct Elem {
     const size_t* begin{nullptr};
     const size_t* end{nullptr};
-    bst_node_t node_id{-1}; // id of node associated with this instance set; -1 means uninitialized
+    bst_node_t node_id{-1};  // id of node associated with this instance set; -1 means uninitialized
     Elem()
          = default;
     Elem(const size_t* begin,
@@ -146,9 +143,9 @@ class PartitionBuilder {
 
 
     if (data_.Size() < nodes_offsets_[n_nodes]) {
-      data_.Resize(qu_, nodes_offsets_[n_nodes]);
+      data_.Resize(&qu_, nodes_offsets_[n_nodes]);
     }
-    prefix_sums_.Resize(qu, maxLocalSums);
+    prefix_sums_.Resize(&qu, maxLocalSums);
   }
 
 
@@ -164,7 +161,8 @@ class PartitionBuilder {
 
   size_t GetLocalSize(const xgboost::common::Range1d& range) {
     size_t range_size = range.end() - range.begin();
-    size_t local_subgroups = range_size / (maxLocalSums * subgroupSize) + !!(range_size % (maxLocalSums * subgroupSize));
+    size_t local_subgroups = range_size / (maxLocalSums * subgroupSize) +
+                             !!(range_size % (maxLocalSums * subgroupSize));
     return subgroupSize * local_subgroups;
   }
 
@@ -172,7 +170,6 @@ class PartitionBuilder {
   size_t GetSubgroupSize() {
     return subgroupSize;
   }
-
 
   // void SetNLeftElems(int nid, size_t n_left) {
   //   result_left_rows_[nid] = n_left;
@@ -183,9 +180,9 @@ class PartitionBuilder {
   //   result_right_rows_[nid] = n_right;
   // }
 
-
-  // ::sycl::event SetNLeftRightElems(::sycl::queue& qu, const USMVector<size_t, MemoryType::on_device>& parts_size,
-  //                                const std::vector<::sycl::event>& priv_events) {
+  // ::sycl::event SetNLeftRightElems(::sycl::queue& qu, const USMVector<size_t,
+  //                                  MemoryType::on_device>& parts_size,
+  //                                  const std::vector<::sycl::event>& priv_events) {
   //   auto event = qu.submit([&](::sycl::handler& cgh) {
   //     cgh.depends_on(priv_events);
   //     cgh.parallel_for<>(::sycl::range<1>(n_nodes_), [=](::sycl::item<1> nid) {
@@ -215,42 +212,25 @@ class PartitionBuilder {
   }
 
 
-  ::sycl::event MergeToArray(::sycl::queue& qu, size_t node_in_set,
-                           size_t* data_result,
-                           ::sycl::event priv_event) {
+  ::sycl::event MergeToArray(::sycl::queue* qu, size_t node_in_set,
+                             size_t* data_result,
+                             ::sycl::event priv_event) {
     size_t n_nodes_total = GetNLeftElems(node_in_set) + GetNRightElems(node_in_set);
     if (n_nodes_total > 0) {
       const size_t* data = data_.Data() + nodes_offsets_[node_in_set];
-      return qu.memcpy(data_result, data, sizeof(size_t) * n_nodes_total, priv_event);
+      return qu->memcpy(data_result, data, sizeof(size_t) * n_nodes_total, priv_event);
     } else {
       return ::sycl::event();
     }
   }
-
-
-  // void MergeToArray(int nid, size_t* rows_indexes) {
-  //   size_t* data_result = rows_indexes;
-
-
-  //   const size_t* data = data_.Data() + nodes_offsets_[nid];
-
-
-  //   if (result_left_rows_[nid] + result_right_rows_[nid] > 0) qu_.memcpy(data_result, data, sizeof(size_t) * (result_left_rows_[nid] + result_right_rows_[nid]));
-  // }
-
 
  protected:
   std::vector<size_t> nodes_offsets_;
   std::vector<size_t> result_rows_;
   size_t n_nodes_;
 
-
   USMVector<size_t, MemoryType::on_device> data_;
-
-
   USMVector<size_t> prefix_sums_;
-
-
   ::sycl::queue qu_;
 };
 
@@ -260,4 +240,4 @@ class PartitionBuilder {
 }  // namespace xgboost
 
 
-#endif  // XGBOOST_COMMON_ROW_SET_SYCL_H_
+#endif  // PLUGIN_SYCL_COMMON_ROW_SET_H_

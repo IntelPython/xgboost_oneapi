@@ -2,14 +2,17 @@
  * Copyright 2017-2021 by Contributors
  * \file updater_quantile_hist.h
  */
-#ifndef XGBOOST_TREE_UPDATER_QUANTILE_HIST_SYCL_H_
-#define XGBOOST_TREE_UPDATER_QUANTILE_HIST_SYCL_H_
+#ifndef PLUGIN_SYCL_TREE_UPDATER_QUANTILE_HIST_H_
+#define PLUGIN_SYCL_TREE_UPDATER_QUANTILE_HIST_H_
 
 #include <dmlc/timer.h>
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
 #include <queue>
+#include <utility>
+#include <memory>
+#include <vector>
 
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
@@ -117,7 +120,8 @@ struct NodeEntry {
 /*! \brief construct a tree using quantized feature values with SYCL backend*/
 class QuantileHistMaker: public TreeUpdater {
  public:
-  explicit QuantileHistMaker(Context const* ctx, ObjInfo const * task) : TreeUpdater(ctx), ctx_(ctx), task_{task} {
+  QuantileHistMaker(Context const* ctx, ObjInfo const * task) :
+                             TreeUpdater(ctx), ctx_(ctx), task_{task} {
     updater_monitor_.Init("SYCLQuantileHistMaker");
   }
   void Configure(const Args& args) override;
@@ -189,7 +193,7 @@ class QuantileHistMaker: public TreeUpdater {
   template<typename GradientSumT>
   struct Builder {
    public:
-    template <MemoryType memory_type=MemoryType::shared>
+    template <MemoryType memory_type = MemoryType::shared>
     using GHistRowT = GHistRow<GradientSumT, memory_type>;
     using GradientPairT = xgboost::detail::GradientPairInternal<GradientSumT>;
     // constructor
@@ -203,7 +207,7 @@ class QuantileHistMaker: public TreeUpdater {
         pruner_(std::move(pruner)),
         interaction_constraints_{std::move(int_constraints_)},
         p_last_tree_(nullptr), p_last_fmat_(fmat),
-        snode_(qu, 1u << (param.max_depth + 1), NodeEntry<GradientSumT>(param)) {
+        snode_(&qu, 1u << (param.max_depth + 1), NodeEntry<GradientSumT>(param)) {
       builder_monitor_.Init("SYCL::Quantile::Builder");
       kernel_monitor_.Init("SYCL::Quantile::Kernels");
     }
@@ -217,18 +221,20 @@ class QuantileHistMaker: public TreeUpdater {
                 xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
                 RegTree *p_tree);
 
-    inline ::sycl::event BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+    inline ::sycl::event BuildHist(
+                          const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
                           const RowSetCollection::Elem row_indices,
                           const GHistIndexMatrix& gmat,
-                          GHistRowT<MemoryType::on_device>& hist,
-                          GHistRowT<MemoryType::on_device>& hist_buffer,
+                          GHistRowT<MemoryType::on_device>* hist,
+                          GHistRowT<MemoryType::on_device>* hist_buffer,
                           ::sycl::event event_priv) {
-      return hist_builder_.BuildHist(gpair_device, row_indices, gmat, hist, data_layout_ != kSparseData, hist_buffer, event_priv);
+      return hist_builder_.BuildHist(gpair_device, row_indices, gmat, hist,
+                                     data_layout_ != kSparseData, hist_buffer, event_priv);
     }
 
-    inline void SubtractionTrick(GHistRowT<MemoryType::on_device>& self,
-                                 GHistRowT<MemoryType::on_device>& sibling,
-                                 GHistRowT<MemoryType::on_device>& parent) {
+    inline void SubtractionTrick(GHistRowT<MemoryType::on_device>* self,
+                                 const GHistRowT<MemoryType::on_device>& sibling,
+                                 const GHistRowT<MemoryType::on_device>& parent) {
       builder_monitor_.Start("SubtractionTrick");
       hist_builder_.SubtractionTrick(self, sibling, parent);
       builder_monitor_.Stop("SubtractionTrick");
@@ -286,7 +292,7 @@ class QuantileHistMaker: public TreeUpdater {
 
     void InitSampling(const std::vector<GradientPair>& gpair,
                       const USMVector<GradientPair, MemoryType::on_device> &gpair_device,
-                      const DMatrix& fmat, USMVector<size_t, MemoryType::on_device>& row_indices);
+                      const DMatrix& fmat, USMVector<size_t, MemoryType::on_device>* row_indices);
 
     void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                         const GHistIndexMatrix& gmat,
@@ -298,16 +304,18 @@ class QuantileHistMaker: public TreeUpdater {
     // value for the particular feature fid.
     template <int d_step>
     static GradStats<GradientSumT> EnumerateSplit(
-        const uint32_t* cut_ptr,const bst_float* cut_val, const bst_float* cut_minval, const GradientPairT* hist_data,
-        const NodeEntry<GradientSumT> &snode, SplitEntry<GradientSumT>& p_best, bst_uint fid,
-        bst_uint nodeID,
-        typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator, const TrainParam& param);
+        const uint32_t* cut_ptr, const bst_float* cut_val, const bst_float* cut_minval,
+        const GradientPairT* hist_data, const NodeEntry<GradientSumT> &snode,
+        SplitEntry<GradientSumT>* p_best, bst_uint fid, bst_uint nodeID,
+        typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
+        const TrainParam& param);
 
-    static GradStats<GradientSumT> EnumerateSplit(::sycl::sub_group& sg,
+    static GradStats<GradientSumT> EnumerateSplit(const ::sycl::sub_group& sg,
         const uint32_t* cut_ptr, const bst_float* cut_val, const GradientPairT* hist_data,
-        const NodeEntry<GradientSumT> &snode, SplitEntry<GradientSumT>& p_best, bst_uint fid,
+        const NodeEntry<GradientSumT> &snode, SplitEntry<GradientSumT>* p_best, bst_uint fid,
         bst_uint nodeID,
-        typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator, const TrainParam& param);
+        typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
+        const TrainParam& param);
 
     void ApplySplit(std::vector<ExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,
@@ -319,7 +327,7 @@ class QuantileHistMaker: public TreeUpdater {
                          const int32_t split_cond,
                          const GHistIndexMatrix &gmat,
                          const RegTree::Node& node,
-                         xgboost::common::Span<size_t>& rid_buf,
+                         xgboost::common::Span<size_t>* rid_buf,
                          size_t* parts_size,
                          ::sycl::event priv_event);
 
@@ -339,7 +347,8 @@ class QuantileHistMaker: public TreeUpdater {
     // is equal to sum of statistics for all values:
     // then - there are no missing values
     // else - there are missing values
-    static bool SplitContainsMissingValues(const GradStats<GradientSumT>& e, const NodeEntry<GradientSumT>& snode);
+    static bool SplitContainsMissingValues(const GradStats<GradientSumT>& e,
+                                           const NodeEntry<GradientSumT>& snode);
 
     void ExpandWithDepthWise(const GHistIndexMatrix &gmat,
                              DMatrix *p_fmat,
@@ -396,7 +405,7 @@ class QuantileHistMaker: public TreeUpdater {
                              const std::vector<GradientPair> &gpair,
                              const USMVector<GradientPair, MemoryType::on_device>& gpair_device);
 
-    void ReduceHists(std::vector<int>& sync_ids, size_t nbins);
+    void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
       if (lhs.loss_chg == rhs.loss_chg) {
@@ -496,7 +505,7 @@ class HistSynchronizer {
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
 
   virtual void SyncHistograms(BuilderT* builder,
-                              std::vector<int>& sync_ids,
+                              const std::vector<int>& sync_ids,
                               RegTree *p_tree) = 0;
   virtual ~HistSynchronizer() = default;
 };
@@ -506,7 +515,7 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
   void SyncHistograms(BuilderT* builder,
-                      std::vector<int>& sync_ids,
+                      const std::vector<int>& sync_ids,
                       RegTree *p_tree) override;
 
   std::vector<::sycl::event> GetEvents() const {
@@ -523,7 +532,9 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
   using ExpandEntryT = typename BuilderT::ExpandEntry;
 
-  void SyncHistograms(BuilderT* builder, std::vector<int>& sync_ids, RegTree *p_tree) override;
+  void SyncHistograms(BuilderT* builder,
+                      const std::vector<int>& sync_ids,
+                      RegTree *p_tree) override;
 
   void ParallelSubtractionHist(BuilderT* builder,
                                const std::vector<ExpandEntryT>& nodes,
@@ -535,7 +546,7 @@ class HistRowsAdder {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
 
-  virtual void AddHistRows(BuilderT* builder, std::vector<int>& sync_ids, RegTree *p_tree) = 0;
+  virtual void AddHistRows(BuilderT* builder, std::vector<int>* sync_ids, RegTree *p_tree) = 0;
   virtual ~HistRowsAdder() = default;
 };
 
@@ -543,14 +554,14 @@ template <typename GradientSumT>
 class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, std::vector<int>& sync_ids, RegTree *p_tree) override;
+  void AddHistRows(BuilderT*, std::vector<int>* sync_ids, RegTree *p_tree) override;
 };
 
 template <typename GradientSumT>
 class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  void AddHistRows(BuilderT*, std::vector<int>& sync_ids, RegTree *p_tree) override;
+  void AddHistRows(BuilderT*, std::vector<int>* sync_ids, RegTree *p_tree) override;
 };
 
 
@@ -558,4 +569,4 @@ class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
 }  // namespace sycl
 }  // namespace xgboost
 
-#endif  // XGBOOST_TREE_UPDATER_QUANTILE_HIST_SYCL_H_
+#endif  // PLUGIN_SYCL_TREE_UPDATER_QUANTILE_HIST_H_

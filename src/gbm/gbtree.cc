@@ -116,10 +116,10 @@ void GBTree::Configure(Args const& cfg) {
 
 #if defined(XGBOOST_USE_SYCL)
   if (!sycl_predictor_) {
-   sycl_predictor_ =
-       std::unique_ptr<Predictor>(Predictor::Create("sycl_predictor", this->ctx_));
+    sycl_predictor_ =
+      std::unique_ptr<Predictor>(Predictor::Create("sycl_predictor", this->ctx_));
   }
- sycl_predictor_->Configure(cfg);
+  sycl_predictor_->Configure(cfg);
 #endif  // defined(XGBOOST_USE_SYCL)
 
   // `updater` parameter was manually specified
@@ -577,7 +577,6 @@ void GBTree::InplacePredict(std::shared_ptr<DMatrix> p_m, float missing,
       return sycl_predictor_;
 #endif  // defined(XGBOOST_USE_SYCL)
     }
-
   }
 
   // Data comes from Device DMatrix.

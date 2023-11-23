@@ -33,7 +33,8 @@ struct DeviceSym {
  */
 constexpr static bst_d_ordinal_t kDefaultOrdinal = -1;
 struct DeviceOrd {
-  enum Type : std::int16_t { kCPU = 0, kCUDA = 1, kSyclDefault = 2, kSyclCPU = 3, kSyclGPU = 4} device{kCPU};
+  enum Type : std::int16_t { kCPU = 0, kCUDA = 1,
+                             kSyclDefault = 2, kSyclCPU = 3, kSyclGPU = 4} device{kCPU};
   // CUDA or Sycl device ordinal.
   bst_d_ordinal_t ordinal{kDefaultOrdinal};
 
@@ -70,21 +71,27 @@ struct DeviceOrd {
    *
    * @param ordinal SYCL device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_default(bst_d_ordinal_t ordinal = kDefaultOrdinal) { return DeviceOrd{kSyclDefault, ordinal}; }
+  [[nodiscard]] constexpr static auto SYCL_default(bst_d_ordinal_t ordinal = kDefaultOrdinal) {
+    return DeviceOrd{kSyclDefault, ordinal};
+  }
 
   /**
    * @brief Constructor for SYCL CPU.
    *
    * @param ordinal SYCL CPU device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_CPU(bst_d_ordinal_t ordinal = kDefaultOrdinal) { return DeviceOrd{kSyclCPU, ordinal}; }
+  [[nodiscard]] constexpr static auto SYCL_CPU(bst_d_ordinal_t ordinal = kDefaultOrdinal) {
+    return DeviceOrd{kSyclCPU, ordinal};
+  }
 
   /**
    * @brief Constructor for SYCL GPU.
    *
    * @param ordinal SYCL GPU device ordinal.
    */
-  [[nodiscard]] constexpr static auto SYCL_GPU(bst_d_ordinal_t ordinal = kDefaultOrdinal) { return DeviceOrd{kSyclGPU, ordinal}; }
+  [[nodiscard]] constexpr static auto SYCL_GPU(bst_d_ordinal_t ordinal = kDefaultOrdinal) {
+    return DeviceOrd{kSyclGPU, ordinal};
+  }
 
   [[nodiscard]] bool operator==(DeviceOrd const& that) const {
     return device == that.device && ordinal == that.ordinal;
@@ -188,7 +195,7 @@ struct Context : public XGBoostParameter<Context> {
    * @brief Is XGBoost running on any SYCL device?
    */
   [[nodiscard]] bool IsSycl() const { return IsSyclDefault()
-                                             || IsSyclCPU() 
+                                             || IsSyclCPU()
                                              || IsSyclGPU(); }
 
   /**

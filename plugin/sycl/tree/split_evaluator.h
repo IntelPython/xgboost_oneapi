@@ -2,8 +2,8 @@
  * Copyright 2018-2023 by Contributors
  */
 
-#ifndef XGBOOST_TREE_SPLIT_EVALUATOR_SYCL_H_
-#define XGBOOST_TREE_SPLIT_EVALUATOR_SYCL_H_
+#ifndef PLUGIN_SYCL_TREE_SPLIT_EVALUATOR_H_
+#define PLUGIN_SYCL_TREE_SPLIT_EVALUATOR_H_
 
 #include <dmlc/registry.h>
 #include <xgboost/base.h>
@@ -20,7 +20,7 @@
 #include "../../src/common/math.h"
 #include "../../src/tree/param.h"
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -48,13 +48,13 @@ class TreeEvaluator {
   TreeEvaluator(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     qu_ = qu;
     if (p.monotone_constraints.empty()) {
-      monotone_.Resize(qu_, n_features, 0);
+      monotone_.Resize(&qu_, n_features, 0);
       has_constraint_ = false;
     } else {
-      monotone_ = USMVector<int32_t>(qu_, p.monotone_constraints);
-      monotone_.Resize(qu_, n_features, 0);
-      lower_bounds_.Resize(qu_, p.MaxNodes(), -std::numeric_limits<GradType>::max());
-      upper_bounds_.Resize(qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
+      monotone_ = USMVector<int32_t>(&qu_, p.monotone_constraints);
+      monotone_.Resize(&qu_, n_features, 0);
+      lower_bounds_.Resize(&qu_, p.MaxNodes(), -std::numeric_limits<GradType>::max());
+      upper_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
       has_constraint_ = true;
     }
     param_ = TrainParam(p);
@@ -104,7 +104,7 @@ class TreeEvaluator {
       GradType dw = -this->ThresholdL1(sum_grad, param.reg_alpha) / (sum_hess + param.reg_lambda);
       if (param.max_delta_step != 0.0f && std::abs(dw) > param.max_delta_step) {
         dw = ::sycl::copysign((GradType)param.max_delta_step, dw);
-      }         
+      }
       return dw;
     }
 
@@ -131,7 +131,8 @@ class TreeEvaluator {
       return -(2.0f * sum_grad * w + (sum_hess + param.reg_lambda) * this->Sqr(w));
     }
 
-    inline GradType CalcGainGivenWeight(bst_node_t nid, const GradStats<GradType>& stats, GradType w) const {
+    inline GradType CalcGainGivenWeight(bst_node_t nid, const GradStats<GradType>& stats,
+                                        GradType w) const {
       if (stats.GetHess() <= 0) {
         return .0f;
       }
@@ -191,4 +192,4 @@ class TreeEvaluator {
 }  // namespace sycl
 }  // namespace xgboost
 
-#endif  // XGBOOST_TREE_SPLIT_EVALUATOR_SYCL_H_
+#endif  // PLUGIN_SYCL_TREE_SPLIT_EVALUATOR_H_

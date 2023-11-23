@@ -1,15 +1,17 @@
 /*!
- * Copyright 2017-2022 by Contributors
+ * Copyright 2017-2023 by Contributors
  * \file device_manager.h
  */
-#ifndef XGBOOST_DEVICE_MANAGER_SYCL_H_
-#define XGBOOST_DEVICE_MANAGER_SYCL_H_
+#ifndef PLUGIN_SYCL_DEVICE_MANAGER_H_
+#define PLUGIN_SYCL_DEVICE_MANAGER_H_
 
 #include <vector>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
+
 #include "xgboost/context.h"
 
 namespace xgboost {
@@ -23,6 +25,7 @@ class DeviceManager {
 
  private:
   using QueueRegister_t = std::unordered_map<std::string, ::sycl::queue>;
+  constexpr static int kDefaultOrdinal = -1;
 
   struct DeviceRegister {
     std::vector<::sycl::device> devices;
@@ -41,4 +44,4 @@ class DeviceManager {
 }  // namespace sycl
 }  // namespace xgboost
 
-#endif  // XGBOOST_DEVICE_MANAGER_SYCL_H_
+#endif  // PLUGIN_SYCL_DEVICE_MANAGER_H_

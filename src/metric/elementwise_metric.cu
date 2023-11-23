@@ -187,7 +187,7 @@ class PseudoErrorLoss : public MetricNoCache {
     preds.SetDevice(ctx_->gpu_id);
     auto predts = ctx_->IsCUDA() ? preds.ConstDeviceSpan() : preds.ConstHostSpan();
     info.weights_.SetDevice(ctx_->gpu_id);
-    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan() 
+    common::OptionalWeights weights(ctx_->IsCUDA() ? info.weights_.ConstDeviceSpan()
                                                    : info.weights_.ConstHostSpan());
     float slope = this->param_.huber_slope;
     CHECK_NE(slope, 0.0) << "slope for pseudo huber cannot be 0.";

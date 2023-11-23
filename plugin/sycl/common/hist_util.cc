@@ -4,10 +4,11 @@
  */
 #include <vector>
 #include <limits>
+#include <algorithm>
 
 #include "hist_util.h"
 
-#include "CL/sycl.hpp"
+#include <CL/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {
@@ -64,7 +65,7 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
   const uint32_t* cut_ptrs = cut_device.Ptrs().DataConst();
   ::sycl::buffer<size_t, 1> hit_count_buf(hit_count.data(), hit_count.size());
 
-  USMVector<BinIdxType> sort_buf(qu, num_rows * row_stride);
+  USMVector<BinIdxType> sort_buf(&qu, num_rows * row_stride);
   BinIdxType* sort_data = sort_buf.Data();
 
   qu.submit([&](::sycl::handler& cgh) {
@@ -184,21 +185,23 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
  * \brief Fill histogram with zeroes
  */
 template<typename GradientSumT>
-void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>& hist, size_t size) {
-  qu.fill(hist.Begin(), xgboost::detail::GradientPairInternal<GradientSumT>(), size);
+void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>* hist, size_t size) {
+  qu.fill(hist->Begin(), xgboost::detail::GradientPairInternal<GradientSumT>(), size);
 }
-template void InitHist(::sycl::queue qu, GHistRow<float,  MemoryType::on_device>& hist, size_t size);
-template void InitHist(::sycl::queue qu, GHistRow<double, MemoryType::on_device>& hist, size_t size);
+template void InitHist(::sycl::queue qu,
+                       GHistRow<float,  MemoryType::on_device>* hist, size_t size);
+template void InitHist(::sycl::queue qu,
+                       GHistRow<double, MemoryType::on_device>* hist, size_t size);
 
 /*!
  * \brief Copy histogram from src to dst
  */
 template<typename GradientSumT>
 void CopyHist(::sycl::queue qu,
-              GHistRow<GradientSumT, MemoryType::on_device>& dst,
+              GHistRow<GradientSumT, MemoryType::on_device>* dst,
               const GHistRow<GradientSumT, MemoryType::on_device>& src,
               size_t size) {
-  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.Data());
+  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst->Data());
   const GradientSumT* psrc = reinterpret_cast<const GradientSumT*>(src.DataConst());
 
   qu.submit([&](::sycl::handler& cgh) {
@@ -206,14 +209,14 @@ void CopyHist(::sycl::queue qu,
       const size_t i = pid.get_id(0);
       pdst[i] = psrc[i];
     });
-  }).wait();  
+  }).wait();
 }
 template void CopyHist(::sycl::queue qu,
-                       GHistRow<float, MemoryType::on_device>& dst,
+                       GHistRow<float, MemoryType::on_device>* dst,
                        const GHistRow<float, MemoryType::on_device>& src,
                        size_t size);
 template void CopyHist(::sycl::queue qu,
-                       GHistRow<double, MemoryType::on_device>& dst,
+                       GHistRow<double, MemoryType::on_device>* dst,
                        const GHistRow<double, MemoryType::on_device>& src,
                        size_t size);
 
@@ -222,11 +225,11 @@ template void CopyHist(::sycl::queue qu,
  */
 template<typename GradientSumT>
 ::sycl::event SubtractionHist(::sycl::queue qu,
-                            GHistRow<GradientSumT, MemoryType::on_device>& dst,
+                            GHistRow<GradientSumT, MemoryType::on_device>* dst,
                             const GHistRow<GradientSumT, MemoryType::on_device>& src1,
                             const GHistRow<GradientSumT, MemoryType::on_device>& src2,
                             size_t size, ::sycl::event event_priv) {
-  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst.Data());
+  GradientSumT* pdst = reinterpret_cast<GradientSumT*>(dst->Data());
   const GradientSumT* psrc1 = reinterpret_cast<const GradientSumT*>(src1.DataConst());
   const GradientSumT* psrc2 = reinterpret_cast<const GradientSumT*>(src2.DataConst());
 
@@ -240,12 +243,12 @@ template<typename GradientSumT>
   return event_final;
 }
 template ::sycl::event SubtractionHist(::sycl::queue qu,
-                              GHistRow<float, MemoryType::on_device>& dst,
+                              GHistRow<float, MemoryType::on_device>* dst,
                               const GHistRow<float, MemoryType::on_device>& src1,
                               const GHistRow<float, MemoryType::on_device>& src2,
                               size_t size, ::sycl::event event_priv);
 template ::sycl::event SubtractionHist(::sycl::queue qu,
-                              GHistRow<double, MemoryType::on_device>& dst,
+                              GHistRow<double, MemoryType::on_device>* dst,
                               const GHistRow<double, MemoryType::on_device>& src1,
                               const GHistRow<double, MemoryType::on_device>& src2,
                               size_t size, ::sycl::event event_priv);
@@ -256,8 +259,8 @@ template<typename FPType, typename BinIdxType, bool isDense>
                             const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
                             const RowSetCollection::Elem& row_indices,
                             const GHistIndexMatrix& gmat,
-                            GHistRow<FPType, MemoryType::on_device>& hist,
-                            GHistRow<FPType, MemoryType::on_device>& hist_buffer,
+                            GHistRow<FPType, MemoryType::on_device>* hist,
+                            GHistRow<FPType, MemoryType::on_device>* hist_buffer,
                             ::sycl::event event_priv) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
@@ -265,23 +268,25 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
-  FPType* hist_data = reinterpret_cast<FPType*>(hist.Data());
+  FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local = qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
+  const size_t max_feat_local =
+    qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
   const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
 
-  const size_t max_nblocks = hist_buffer.Size() / (nbins * 2);
+  const size_t max_nblocks = hist_buffer->Size() / (nbins * 2);
   const size_t min_block_size = 128;
   size_t nblocks = std::min(max_nblocks, size / min_block_size + !!(size % min_block_size));
   const size_t block_size = size / nblocks + !!(size % nblocks);
-  FPType* hist_buffer_data = reinterpret_cast<FPType*>(hist_buffer.Data());
+  FPType* hist_buffer_data = reinterpret_cast<FPType*>(hist_buffer->Data());
 
   auto event_fill = qu.fill(hist_buffer_data, FPType(0), nblocks * nbins * 2, event_priv);
   auto event_main = qu.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, feat_local),
-                                         ::sycl::range<2>(1, feat_local)), [=](::sycl::nd_item<2> pid) {
+                                           ::sycl::range<2>(1, feat_local)),
+                       [=](::sycl::nd_item<2> pid) {
       size_t block = pid.get_global_id(0);
       size_t feat = pid.get_global_id(1);
 
@@ -336,7 +341,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
                             const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
                             const RowSetCollection::Elem& row_indices,
                             const GHistIndexMatrix& gmat,
-                            GHistRow<FPType, MemoryType::on_device>& hist,
+                            GHistRow<FPType, MemoryType::on_device>* hist,
                             ::sycl::event event_priv) {
   const size_t size = row_indices.Size();
   const size_t* rid = row_indices.begin;
@@ -344,10 +349,11 @@ template<typename FPType, typename BinIdxType, bool isDense>
   const float* pgh = reinterpret_cast<const float*>(gpair_device.DataConst());
   const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
   const uint32_t* offsets = gmat.index.Offset();
-  FPType* hist_data = reinterpret_cast<FPType*>(hist.Data());
+  FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local = qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
+  const size_t max_feat_local =
+    qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
   const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
 
   auto event_fill = qu.fill(hist_data, FPType(0), nbins * 2, event_priv);
@@ -381,19 +387,21 @@ template<typename FPType, typename BinIdxType, bool isDense>
 }
 
 template<typename FPType, typename BinIdxType>
-::sycl::event BuildHistDispatchKernel(::sycl::queue qu,
-                                    const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
-                                    const RowSetCollection::Elem& row_indices,
-                                    const GHistIndexMatrix& gmat,
-                                    GHistRow<FPType, MemoryType::on_device>& hist,
-                                    bool isDense,
-                                    GHistRow<FPType, MemoryType::on_device>& hist_buffer,
-                                    ::sycl::event events_priv) {
+::sycl::event BuildHistDispatchKernel(
+                ::sycl::queue qu,
+                const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+                const RowSetCollection::Elem& row_indices,
+                const GHistIndexMatrix& gmat,
+                GHistRow<FPType, MemoryType::on_device>* hist,
+                bool isDense,
+                GHistRow<FPType, MemoryType::on_device>* hist_buffer,
+                ::sycl::event events_priv) {
   const size_t size = row_indices.Size();
   const size_t n_columns = isDense ? gmat.nfeatures : gmat.row_stride;
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local = qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
+  const size_t max_feat_local =
+    qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
   const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
 
   // max cycle size, while atomics are still effective
@@ -402,20 +410,20 @@ template<typename FPType, typename BinIdxType>
   if (cycle_size > max_cycle_size_atomics) {
     if (isDense) {
       return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair_device, row_indices,
-                                                      gmat, hist, hist_buffer,
-                                                      events_priv);
+                                                       gmat, hist, hist_buffer,
+                                                       events_priv);
     } else {
       return BuildHistKernel<FPType, uint32_t, false>(qu, gpair_device, row_indices,
-                                                        gmat, hist, hist_buffer,
-                                                        events_priv);
+                                                      gmat, hist, hist_buffer,
+                                                      events_priv);
     }
   } else {
     if (isDense) {
       return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair_device, row_indices,
-                                                      gmat, hist, events_priv);
+                                                       gmat, hist, events_priv);
     } else {
       return BuildHistKernel<FPType, uint32_t, false>(qu, gpair_device, row_indices,
-                                                        gmat, hist, events_priv);
+                                                      gmat, hist, events_priv);
     }
   }
 }
@@ -425,8 +433,8 @@ template<typename FPType>
                             const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
                             const RowSetCollection::Elem& row_indices,
                             const GHistIndexMatrix& gmat, const bool isDense,
-                            GHistRow<FPType, MemoryType::on_device>& hist,
-                            GHistRow<FPType, MemoryType::on_device>& hist_buffer,
+                            GHistRow<FPType, MemoryType::on_device>* hist,
+                            GHistRow<FPType, MemoryType::on_device>* hist_buffer,
                             ::sycl::event event_priv) {
   const bool is_dense = isDense;
   switch (gmat.index.GetBinTypeSize()) {
@@ -451,51 +459,55 @@ template<typename FPType>
 }
 
 template <typename GradientSumT>
-::sycl::event GHistBuilder<GradientSumT>::BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
-                                                    const RowSetCollection::Elem& row_indices,
-                                                    const GHistIndexMatrix &gmat,
-                                                    GHistRowT<MemoryType::on_device>& hist,
-                                                    bool isDense,
-                                                    GHistRowT<MemoryType::on_device>& hist_buffer,
-                                                    ::sycl::event event_priv) {
-  return BuildHistKernel<GradientSumT>(qu_, gpair_device, row_indices, gmat, isDense, hist, hist_buffer, event_priv);
+::sycl::event GHistBuilder<GradientSumT>::BuildHist(
+              const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+              const RowSetCollection::Elem& row_indices,
+              const GHistIndexMatrix &gmat,
+              GHistRowT<MemoryType::on_device>* hist,
+              bool isDense,
+              GHistRowT<MemoryType::on_device>* hist_buffer,
+              ::sycl::event event_priv) {
+  return BuildHistKernel<GradientSumT>(qu_, gpair_device, row_indices, gmat,
+                                       isDense, hist, hist_buffer, event_priv);
 }
 
 template
-::sycl::event GHistBuilder<float>::BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
-                                             const RowSetCollection::Elem& row_indices,
-                                             const GHistIndexMatrix& gmat,
-                                             GHistRow<float, MemoryType::on_device>& hist,
-                                             bool isDense,
-                                             GHistRow<float, MemoryType::on_device>& hist_buffer,
-                                             ::sycl::event event_priv);
+::sycl::event GHistBuilder<float>::BuildHist(
+              const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+              const RowSetCollection::Elem& row_indices,
+              const GHistIndexMatrix& gmat,
+              GHistRow<float, MemoryType::on_device>* hist,
+              bool isDense,
+              GHistRow<float, MemoryType::on_device>* hist_buffer,
+              ::sycl::event event_priv);
 template
-::sycl::event GHistBuilder<double>::BuildHist(const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
-                                              const RowSetCollection::Elem& row_indices,
-                                              const GHistIndexMatrix& gmat,
-                                              GHistRow<double, MemoryType::on_device>& hist,
-                                              bool isDense,
-                                              GHistRow<double, MemoryType::on_device>& hist_buffer,
-                                              ::sycl::event event_priv);
+::sycl::event GHistBuilder<double>::BuildHist(
+              const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
+              const RowSetCollection::Elem& row_indices,
+              const GHistIndexMatrix& gmat,
+              GHistRow<double, MemoryType::on_device>* hist,
+              bool isDense,
+              GHistRow<double, MemoryType::on_device>* hist_buffer,
+              ::sycl::event event_priv);
 
 template<typename GradientSumT>
-void GHistBuilder<GradientSumT>::SubtractionTrick(GHistRowT<MemoryType::on_device>& self,
-                                                  GHistRowT<MemoryType::on_device>& sibling,
-                                                  GHistRowT<MemoryType::on_device>& parent) {
-  const size_t size = self.Size();
+void GHistBuilder<GradientSumT>::SubtractionTrick(GHistRowT<MemoryType::on_device>* self,
+                                                  const GHistRowT<MemoryType::on_device>& sibling,
+                                                  const GHistRowT<MemoryType::on_device>& parent) {
+  const size_t size = self->Size();
   CHECK_EQ(sibling.Size(), size);
   CHECK_EQ(parent.Size(), size);
 
   SubtractionHist(qu_, self, parent, sibling, size, ::sycl::event());
 }
 template
-void GHistBuilder<float>::SubtractionTrick(GHistRow<float, MemoryType::on_device>& self,
-                                           GHistRow<float, MemoryType::on_device>& sibling,
-                                           GHistRow<float, MemoryType::on_device>& parent);
+void GHistBuilder<float>::SubtractionTrick(GHistRow<float, MemoryType::on_device>* self,
+                                           const GHistRow<float, MemoryType::on_device>& sibling,
+                                           const GHistRow<float, MemoryType::on_device>& parent);
 template
-void GHistBuilder<double>::SubtractionTrick(GHistRow<double, MemoryType::on_device>& self,
-                                            GHistRow<double, MemoryType::on_device>& sibling,
-                                            GHistRow<double, MemoryType::on_device>& parent);
+void GHistBuilder<double>::SubtractionTrick(GHistRow<double, MemoryType::on_device>* self,
+                                            const GHistRow<double, MemoryType::on_device>& sibling,
+                                            const GHistRow<double, MemoryType::on_device>& parent);
 }  // namespace common
 }  // namespace sycl
 }  // namespace xgboost

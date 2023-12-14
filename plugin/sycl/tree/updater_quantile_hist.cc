@@ -1363,7 +1363,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(
   std::vector<int32_t> split_conditions;
   FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
 
-  partition_builder_.Init(qu_, n_nodes, [&](size_t node_in_set) {
+  partition_builder_.Init(&qu_, n_nodes, [&](size_t node_in_set) {
     const int32_t nid = nodes[node_in_set].nid;
     return row_set_collection_[nid].Size();
   });

@@ -16,6 +16,7 @@
 
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
+#include "../common/partition_builder.h"
 #include "split_evaluator.h"
 #include "../device_manager.h"
 

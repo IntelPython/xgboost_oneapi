@@ -5,6 +5,7 @@ endif (PLUGIN_DENSE_PARSER)
 if (PLUGIN_SYCL)
   set(CMAKE_CXX_COMPILER "icpx")
   add_library(plugin_sycl OBJECT
+    ${xgboost_SOURCE_DIR}/plugin/sycl/data/gradient_index.cc
     ${xgboost_SOURCE_DIR}/plugin/sycl/common/hist_util.cc
     ${xgboost_SOURCE_DIR}/plugin/sycl/objective/regression_obj.cc
     ${xgboost_SOURCE_DIR}/plugin/sycl/objective/multiclass_obj.cc

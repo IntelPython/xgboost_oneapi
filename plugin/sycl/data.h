@@ -26,6 +26,13 @@
 
 namespace xgboost {
 namespace sycl {
+
+template <typename T>
+using AtomicRef = ::sycl::atomic_ref<T,
+                                    ::sycl::memory_order::relaxed,
+                                    ::sycl::memory_scope::device,
+                                    ::sycl::access::address_space::ext_intel_global_device_space>;
+
 enum class MemoryType { shared, on_device};
 
 
@@ -169,20 +176,20 @@ class USMVector {
     }
   }
 
-  ::sycl::event ResizeAndFill(::sycl::queue* qu, size_t size_new, int v) {
+  void ResizeAndFill(::sycl::queue* qu, size_t size_new, int v, ::sycl::event* event) {
     if (size_new <= size_) {
       size_ = size_new;
-      return qu->memset(data_.get(), v, size_new * sizeof(T));
+      *event = qu->memset(data_.get(), v, size_new * sizeof(T), *event);
     } else if (size_new <= capacity_) {
       size_ = size_new;
-      return qu->memset(data_.get(), v, size_new * sizeof(T));
+      *event = qu->memset(data_.get(), v, size_new * sizeof(T), *event);
     } else {
       size_t size_old = size_;
       auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
-      return qu->memset(data_.get(), v, size_new * sizeof(T));
+      *event = qu->memset(data_.get(), v, size_new * sizeof(T), *event);
     }
   }
 

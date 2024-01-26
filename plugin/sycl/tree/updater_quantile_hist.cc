@@ -1192,122 +1192,6 @@ GradStats<GradientSumT> QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit
   return GradStats<GradientSumT>(sum_grad, sum_hess);
 }
 
-// split row indexes (rid_span) to 2 parts (both stored in rid_buf) depending
-// on comparison of indexes values (idx_span) and split point (split_cond)
-// Handle dense columns
-template <bool default_left, typename BinIdxType>
-inline ::sycl::event PartitionDenseKernel(
-                                 ::sycl::queue* qu,
-                                 const GHistIndexMatrix& gmat,
-                                 const RowSetCollection::Elem& rid_span,
-                                 const size_t fid,
-                                 const int32_t split_cond,
-                                 xgboost::common::Span<size_t>* rid_buf,
-                                 size_t* parts_size,
-                                 ::sycl::event priv_event) {
-  const size_t row_stride = gmat.row_stride;
-  const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const size_t* rid = rid_span.begin;
-  const size_t range_size = rid_span.Size();
-  const size_t offset = gmat.cut.Ptrs()[fid];
-
-  size_t* p_rid_buf = rid_buf->data();
-
-  auto event = qu->submit([&](::sycl::handler& cgh) {
-    cgh.depends_on(priv_event);
-    cgh.parallel_for<>(::sycl::range<1>(range_size), [=](::sycl::item<1> nid) {
-      const size_t id = rid[nid.get_id(0)];
-      const int32_t value = static_cast<int32_t>(gradient_index[id * row_stride + fid] + offset);
-      const bool is_left = value <= split_cond;
-      if (is_left) {
-        common::AtomicRef<size_t> n_left(parts_size[0]);
-        p_rid_buf[n_left.fetch_add(1)] = id;
-      } else {
-        common::AtomicRef<size_t> n_right(parts_size[1]);
-        p_rid_buf[range_size - n_right.fetch_add(1) - 1] = id;
-      }
-    });
-  });
-  return event;
-}
-
-// split row indexes (rid_span) to 2 parts (both stored in rid_buf) depending
-// on comparison of indexes values (idx_span) and split point (split_cond)
-// Handle dense columns
-template <bool default_left, typename BinIdxType>
-inline ::sycl::event PartitionSparseKernel(::sycl::queue* qu,
-                                  const GHistIndexMatrix& gmat,
-                                  const RowSetCollection::Elem& rid_span,
-                                  const size_t fid,
-                                  const int32_t split_cond,
-                                  xgboost::common::Span<size_t>* rid_buf,
-                                  size_t* parts_size,
-                                  ::sycl::event priv_event) {
-  const size_t row_stride = gmat.row_stride;
-  const BinIdxType* gradient_index = gmat.index.data<BinIdxType>();
-  const size_t* rid = rid_span.begin;
-  const size_t range_size = rid_span.Size();
-  const uint32_t* cut_ptrs = gmat.cut_device.Ptrs().DataConst();
-  const bst_float* cut_vals = gmat.cut_device.Values().DataConst();
-
-  size_t* p_rid_buf = rid_buf->data();
-  auto event = qu->submit([&](::sycl::handler& cgh) {
-    cgh.depends_on(priv_event);
-    cgh.parallel_for<>(::sycl::range<1>(range_size), [=](::sycl::item<1> nid) {
-      const size_t id = rid[nid.get_id(0)];
-
-      const BinIdxType* gr_index_local = gradient_index + row_stride * id;
-      const int32_t fid_local = std::lower_bound(gr_index_local,
-                                                 gr_index_local + row_stride,
-                                                 cut_ptrs[fid]) - gr_index_local;
-      const bool is_left = (fid_local >= row_stride ||
-                            gr_index_local[fid_local] >= cut_ptrs[fid + 1]) ?
-                              default_left :
-                              gr_index_local[fid_local] <= split_cond;
-      if (is_left) {
-        common::AtomicRef<size_t> n_left(parts_size[0]);
-        p_rid_buf[n_left.fetch_add(1)] = id;
-      } else {
-        common::AtomicRef<size_t> n_right(parts_size[1]);
-        p_rid_buf[range_size - n_right.fetch_add(1) - 1] = id;
-      }
-    });
-  });
-  return event;
-}
-
-template <typename GradientSumT>
-template <typename BinIdxType>
-::sycl::event QuantileHistMaker::Builder<GradientSumT>::PartitionKernel(
-    const size_t nid,
-    const int32_t split_cond,
-    const GHistIndexMatrix& gmat,
-    const RegTree::Node& node,
-    xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size,
-    ::sycl::event priv_event) {
-  const bst_uint fid = node.SplitIndex();
-  const bool default_left = node.DefaultLeft();
-
-  if (gmat.IsDense()) {
-    if (default_left) {
-      return PartitionDenseKernel<true, BinIdxType>(&qu_, gmat, row_set_collection_[nid], fid,
-                                                    split_cond, rid_buf, parts_size, priv_event);
-    } else {
-      return PartitionDenseKernel<false, BinIdxType>(&qu_, gmat, row_set_collection_[nid], fid,
-                                                     split_cond, rid_buf, parts_size, priv_event);
-    }
-  } else {
-    if (default_left) {
-      return PartitionSparseKernel<true, BinIdxType>(&qu_, gmat, row_set_collection_[nid], fid,
-                                                     split_cond, rid_buf, parts_size, priv_event);
-    } else {
-      return PartitionSparseKernel<false, BinIdxType>(&qu_, gmat, row_set_collection_[nid], fid,
-                                                      split_cond, rid_buf, parts_size, priv_event);
-    }
-  }
-}
-
 template <typename GradientSumT>
 void QuantileHistMaker::Builder<GradientSumT>::FindSplitConditions(
     const std::vector<ExpandEntry>& nodes,
@@ -1368,50 +1252,15 @@ void QuantileHistMaker::Builder<GradientSumT>::ApplySplit(
     return row_set_collection_[nid].Size();
   });
 
-  // Add resize_and_fill method to save one call
-  auto event = parts_size_.ResizeAndFill(&qu_, 2 * n_nodes, 0);
-  apply_split_events_.resize(n_nodes);
-
-  for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
-    const int32_t nid = nodes[node_in_set].nid;
-    ::sycl::event& cur_event = apply_split_events_[node_in_set];
-    if (row_set_collection_[nid].Size() > 0) {
-      const RegTree::Node& node = (*p_tree)[nid];
-      xgboost::common::Span<size_t> rid_buf = partition_builder_.GetData(node_in_set);
-      size_t* part_size = parts_size_.Data() + 2 * node_in_set;
-      int32_t split_condition = split_conditions[node_in_set];
-      switch (gmat.index.GetBinTypeSize()) {
-        case common::BinTypeSize::kUint8BinsTypeSize:
-          cur_event = PartitionKernel<uint8_t>(nid, split_condition, gmat, node,
-                                               &rid_buf, part_size, event);
-          break;
-        case common::BinTypeSize::kUint16BinsTypeSize:
-          cur_event = PartitionKernel<uint16_t>(nid, split_condition, gmat, node,
-                                                &rid_buf, part_size, event);
-          break;
-        case common::BinTypeSize::kUint32BinsTypeSize:
-          cur_event = PartitionKernel<uint32_t>(nid, split_condition, gmat, node,
-                                                &rid_buf, part_size, event);
-          break;
-        default:
-          CHECK(false);  // no default behavior
-      }
-    } else {
-      cur_event = ::sycl::event();
-    }
-  }
-
-  ::sycl::event event_cpy = qu_.memcpy(partition_builder_.GetResultRowsPtr(),
-                                       parts_size_.DataConst(),
-                                       sizeof(size_t) * 2 * n_nodes,
-                                       apply_split_events_);
+  ::sycl::event event;
+  partition_builder_.Partition(gmat, nodes, row_set_collection_,
+                               split_conditions, p_tree, &event);
   qu_.wait_and_throw();
-  merge_to_array_events_.resize(n_nodes);
+
   for (size_t node_in_set = 0; node_in_set < n_nodes; node_in_set++) {
-    ::sycl::event& cur_event = merge_to_array_events_[node_in_set];
     const int32_t nid = nodes[node_in_set].nid;
     size_t* data_result = const_cast<size_t*>(row_set_collection_[nid].begin);
-    cur_event = partition_builder_.MergeToArray(&qu_, node_in_set, data_result, event_cpy);
+    partition_builder_.MergeToArray(node_in_set, data_result, &event);
   }
   qu_.wait_and_throw();
 
@@ -1487,30 +1336,6 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
 
 template struct QuantileHistMaker::Builder<float>;
 template struct QuantileHistMaker::Builder<double>;
-template ::sycl::event QuantileHistMaker::Builder<float>::PartitionKernel<uint8_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
-template ::sycl::event QuantileHistMaker::Builder<float>::PartitionKernel<uint16_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
-template ::sycl::event QuantileHistMaker::Builder<float>::PartitionKernel<uint32_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
-template ::sycl::event QuantileHistMaker::Builder<double>::PartitionKernel<uint8_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
-template ::sycl::event QuantileHistMaker::Builder<double>::PartitionKernel<uint16_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
-template ::sycl::event QuantileHistMaker::Builder<double>::PartitionKernel<uint32_t>(
-    const size_t nid, const int32_t split_cond, const GHistIndexMatrix &gmat,
-    const RegTree::Node& node, xgboost::common::Span<size_t>* rid_buf,
-    size_t* parts_size, ::sycl::event priv_event);
 
 XGBOOST_REGISTER_TREE_UPDATER(QuantileHistMaker, "grow_quantile_histmaker_sycl")
 .describe("Grow tree using quantized histogram with SYCL.")

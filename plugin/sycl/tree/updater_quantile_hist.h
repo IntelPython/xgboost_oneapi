@@ -14,6 +14,7 @@
 #include <memory>
 #include <vector>
 
+#include "../data/gradient_index.h"
 #include "../common/hist_util.h"
 #include "../common/row_set.h"
 #include "../common/partition_builder.h"
@@ -262,28 +263,6 @@ class QuantileHistMaker: public TreeUpdater {
     friend class BatchHistRowsAdder<GradientSumT>;
     friend class DistributedHistRowsAdder<GradientSumT>;
 
-    /* tree growing policies */
-    struct ExpandEntry {
-      static const int kRootNid  = 0;
-      static const int kEmptyNid = -1;
-      int nid;
-      int sibling_nid;
-      int depth;
-      bst_float loss_chg;
-      unsigned timestamp;
-      ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
-                  unsigned tstmp)
-          : nid(nid), sibling_nid(sibling_nid), depth(depth),
-            loss_chg(loss_chg), timestamp(tstmp) {}
-
-      bool IsValid(xgboost::tree::TrainParam const &param, int32_t num_leaves) const {
-        bool ret = loss_chg <= kRtEps ||
-                   (param.max_depth > 0 && this->depth == param.max_depth) ||
-                   (param.max_leaves > 0 && num_leaves == param.max_leaves);
-        return ret;
-      }
-    };
-
     struct SplitQuery {
       int nid;
       int fid;
@@ -464,9 +443,6 @@ class QuantileHistMaker: public TreeUpdater {
     constexpr static size_t kNumParallelBuffers = 1;
     std::array<common::ParallelGHistBuilder<GradientSumT>, kNumParallelBuffers> hist_buffers_;
     std::array<::sycl::event, kNumParallelBuffers> hist_build_events_;
-    USMVector<size_t, MemoryType::on_device> parts_size_;
-    std::vector<size_t> parts_size_cpu_;
-    std::vector<::sycl::event> apply_split_events_;
     std::vector<::sycl::event> merge_to_array_events_;
     // rabit::op::Reducer<GradientPairT, GradientPairT::Reduce> histred_;
     std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
@@ -531,7 +507,7 @@ template <typename GradientSumT>
 class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
  public:
   using BuilderT = QuantileHistMaker::Builder<GradientSumT>;
-  using ExpandEntryT = typename BuilderT::ExpandEntry;
+  using ExpandEntryT = ExpandEntry;
 
   void SyncHistograms(BuilderT* builder,
                       const std::vector<int>& sync_ids,

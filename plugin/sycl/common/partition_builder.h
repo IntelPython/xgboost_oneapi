@@ -9,6 +9,8 @@
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/data.h>
 #pragma GCC diagnostic pop
+#include <xgboost/tree_model.h>
+
 #include <algorithm>
 #include <vector>
 #include <utility>
@@ -17,8 +19,6 @@
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../../src/common/column_matrix.h"
 #pragma GCC diagnostic pop
-
-#include <xgboost/tree_model.h>
 
 #include "../data.h"
 #include "row_set.h"

@@ -5,6 +5,8 @@
 #ifndef PLUGIN_SYCL_DATA_GRADIENT_INDEX_H_
 #define PLUGIN_SYCL_DATA_GRADIENT_INDEX_H_
 
+#include <vector>
+
 #include "../data.h"
 #include "../../src/common/hist_util.h"
 

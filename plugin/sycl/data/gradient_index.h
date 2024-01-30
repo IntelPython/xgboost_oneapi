@@ -168,8 +168,6 @@ struct Index {
  */
 struct GHistIndexMatrix {
   /*! \brief row pointer to rows by element position */
-  std::vector<size_t> row_ptr;
-  USMVector<size_t> row_ptr_device;
   /*! \brief The index data */
   Index index;
   /*! \brief hit count of each index */

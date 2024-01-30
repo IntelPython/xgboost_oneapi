@@ -126,9 +126,6 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
   const bool isDense = p_fmat_device.p_mat->IsDense();
   this->isDense_ = isDense;
 
-  row_ptr = std::vector<size_t>(p_fmat_device.row_ptr.Begin(), p_fmat_device.row_ptr.End());
-  row_ptr_device = p_fmat_device.row_ptr;
-
   index.setQueue(qu);
 
   row_stride = 0;
@@ -151,9 +148,6 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
     index.ResizeOffset(n_offsets);
     offsets = index.Offset();
     qu.memcpy(offsets, cut.Ptrs().data(), sizeof(uint32_t) * n_offsets).wait_and_throw();
-    // for (size_t i = 0; i < n_offsets; ++i) {
-    //   offsets[i] = cut.Ptrs()[i];
-    // }
   }
 
   if (isDense) {

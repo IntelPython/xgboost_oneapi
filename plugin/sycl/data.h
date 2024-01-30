@@ -240,9 +240,10 @@ struct DeviceMatrix {
       const auto& offset_vec = batch.offset.HostVector();
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
-        auto event = qu.memcpy(row_ptr.Data() + batch.base_rowid, offset_vec.data(), sizeof(size_t) * batch_size);
-        if (batch.base_rowid > 0) {
-          const auto base_rowid = batch.base_rowid;
+        const auto base_rowid = batch.base_rowid;
+        auto event = qu.memcpy(row_ptr.Data() + base_rowid, offset_vec.data(),
+                               sizeof(size_t) * batch_size);
+        if (base_rowid > 0) {
           qu.submit([&](::sycl::handler& cgh) {
             cgh.depends_on(event);
             cgh.parallel_for<>(::sycl::range<1>(batch_size), [=](::sycl::id<1> pid) {
@@ -251,7 +252,8 @@ struct DeviceMatrix {
             });
           });
         }
-        qu.memcpy(data.Data() + data_offset, data_vec.data(), sizeof(Entry) * offset_vec[batch_size]);
+        qu.memcpy(data.Data() + data_offset, data_vec.data(),
+                  sizeof(Entry) * offset_vec[batch_size]);
         data_offset += offset_vec[batch_size];
       }
     }

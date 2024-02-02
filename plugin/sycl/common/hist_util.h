@@ -88,8 +88,11 @@ class HistCollection {
     if (nid >= data_.size()) {
       data_.resize(nid + 1);
     }
-    return data_[nid].ResizeAsync(&qu_, nbins_,
-                                  xgboost::detail::GradientPairInternal<GradientSumT>(0, 0));
+    ::sycl::event event;
+    data_[nid].Resize(&qu_, nbins_,
+                      xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
+                      &event);
+    return event;
   }
 
   void Wait_and_throw() {

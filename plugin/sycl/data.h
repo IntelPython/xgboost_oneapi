@@ -154,25 +154,22 @@ class USMVector {
     }
   }
 
-  ::sycl::event ResizeAsync(::sycl::queue* qu, size_t size_new, T v) {
+   void Resize(::sycl::queue* qu, size_t size_new, T v, ::sycl::event* event) {
     if (size_new <= size_) {
       size_ = size_new;
-      return ::sycl::event();
     } else if (size_new <= capacity_) {
-      auto event = qu->fill(data_.get() + size_, v, size_new - size_);
+      *event = qu->fill(data_.get() + size_, v, size_new - size_, *event);
       size_ = size_new;
-      return event;
     } else {
       size_t size_old = size_;
       auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);
-      ::sycl::event event;
       if (size_old > 0) {
-        event = qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old);
+        *event = qu->memcpy(data_.get(), data_old.get(), sizeof(T) * size_old, *event);
       }
-      return qu->fill(data_.get() + size_old, v, size_new - size_old, event);
+       *event = qu->fill(data_.get() + size_old, v, size_new - size_old, *event);
     }
   }
 
@@ -214,13 +211,24 @@ class USMVector {
 
 /* Wrapper for DMatrix which stores all batches in a single USM buffer */
 struct DeviceMatrix {
-  DMatrix* p_mat;  // Pointer to the original matrix on the host
+  DMatrix* p_mat = nullptr;  // Pointer to the original matrix on the host
   ::sycl::queue qu_;
   USMVector<size_t, MemoryType::on_device> row_ptr;
   USMVector<Entry, MemoryType::on_device> data;
   size_t total_offset;
+  bool is_from_cache = false;
 
-  DeviceMatrix(::sycl::queue qu, DMatrix* dmat) : p_mat(dmat), qu_(qu) {
+  DeviceMatrix() = default;
+
+  void Init(::sycl::queue qu, DMatrix* dmat) {
+    if (p_mat == dmat) {
+      is_from_cache = true;
+      return;
+    }
+    is_from_cache = false;
+    p_mat = dmat;
+    qu_ = qu;
+
     size_t num_row = 0;
     size_t num_nonzero = 0;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {

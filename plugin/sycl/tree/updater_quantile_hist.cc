@@ -86,7 +86,8 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param,
                                const std::vector<RegTree *> &trees) {
   if (dmat != p_last_dmat_ || is_gmat_initialized_ == false) {
     updater_monitor_.Start("DeviceMatrixInitialization");
-    sycl::DeviceMatrix dmat_device(qu_, dmat);
+    sycl::DeviceMatrix dmat_device;
+    dmat_device.Init(qu_, dmat);
     updater_monitor_.Stop("DeviceMatrixInitialization");
     updater_monitor_.Start("GmatInitialization");
     gmat_.Init(qu_, ctx_, dmat_device, static_cast<uint32_t>(param_.max_bin));

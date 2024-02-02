@@ -303,9 +303,11 @@ class Predictor : public xgboost::Predictor {
     if (tree_begin < tree_end) {
       const bool any_missing = !(dmat->IsDense());
       if (any_missing) {
-        DevicePredictInternal<true>(&qu, &fval_buff, &miss_buff, device_matrix, out_preds, model, tree_begin, tree_end);
+        DevicePredictInternal<true>(&qu, &fval_buff, &miss_buff, device_matrix,
+                                    out_preds, model, tree_begin, tree_end);
       } else {
-        DevicePredictInternal<false>(&qu, &fval_buff, &miss_buff, device_matrix, out_preds, model, tree_begin, tree_end);
+        DevicePredictInternal<false>(&qu, &fval_buff, &miss_buff, device_matrix,
+                                     out_preds, model, tree_begin, tree_end);
       }
     }
     predictor_monitor_.Stop("DevicePredictInternal");

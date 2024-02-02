@@ -154,7 +154,7 @@ class USMVector {
     }
   }
 
-   void Resize(::sycl::queue* qu, size_t size_new, T v, ::sycl::event* event) {
+  void Resize(::sycl::queue* qu, size_t size_new, T v, ::sycl::event* event) {
     if (size_new <= size_) {
       size_ = size_new;
     } else if (size_new <= capacity_) {

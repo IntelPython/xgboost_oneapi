@@ -290,9 +290,7 @@ struct DeviceMatrix {
     total_offset = data_offset;
   }
 
-  ~DeviceMatrix() {
-    LOG(WARNING) << "DeviceMatrix::~DeviceMatrix().";
-  }
+  ~DeviceMatrix() {}
 };
 }  // namespace sycl
 }  // namespace xgboost

@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <memory>
 
 #include "../data.h"
 #include "row_set.h"
@@ -83,7 +84,7 @@ class HistCollection {
   ::sycl::event AddHistRow(bst_uint nid) {
     ::sycl::event event;
     if (data_.count(nid) == 0) {
-      data_[nid] = 
+      data_[nid] =
         std::make_shared<GHistRowT>(&qu_, nbins_,
                                     xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
                                     &event);

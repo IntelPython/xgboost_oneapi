@@ -514,7 +514,7 @@ void GBTree::PredictBatchImpl(DMatrix* p_fmat, PredictionCacheEntry* out_preds, 
   auto [tree_begin, tree_end] = detail::LayerToTree(model_, layer_begin, layer_end);
   CHECK_LE(tree_end, model_.trees.size()) << "Invalid number of trees.";
   if (tree_end > tree_begin) {
-    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end);
+    predictor->PredictBatch(p_fmat, out_preds, model_, tree_begin, tree_end, is_training);
   }
   if (reset) {
     out_preds->version = 0;
@@ -763,7 +763,7 @@ class Dart : public GBTree {
       auto version = i / layer_trees();
       p_out_preds->version = version;
       predts.predictions.Fill(0);
-      predictor->PredictBatch(p_fmat, &predts, model_, i, i + 1);
+      predictor->PredictBatch(p_fmat, &predts, model_, i, i + 1, training);
 
       // Multiple the weight to output prediction.
       auto w = this->weight_drop_.at(i);

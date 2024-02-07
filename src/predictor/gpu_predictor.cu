@@ -928,7 +928,7 @@ class GPUPredictor : public xgboost::Predictor {
 
   void PredictBatch(DMatrix* dmat, PredictionCacheEntry* predts,
                     const gbm::GBTreeModel& model, uint32_t tree_begin,
-                    uint32_t tree_end = 0) const override {
+                    uint32_t tree_end = 0, bool training = false) const override {
     int device = ctx_->gpu_id;
     CHECK_GE(device, 0) << "Set `gpu_id' to positive value for processing GPU data.";
     auto* out_preds = &predts->predictions;

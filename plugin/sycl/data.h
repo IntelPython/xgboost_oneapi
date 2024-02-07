@@ -82,6 +82,12 @@ class USMVector {
     qu->fill(data_.get(), v, size_).wait();
   }
 
+  USMVector(::sycl::queue* qu, size_t size, T v,
+            ::sycl::event* event) : size_(size), capacity_(size) {
+    data_ = allocate_memory_(qu, size_);
+    *event = qu->fill(data_.get(), v, size_, *event);
+  }
+
   USMVector(::sycl::queue* qu, const std::vector<T> &vec) {
     size_ = vec.size();
     capacity_ = size_;
@@ -92,12 +98,9 @@ class USMVector {
   ~USMVector() {
   }
 
-  USMVector<T>& operator=(const USMVector<T>& other) {
-    size_ = other.size_;
-    capacity_ = other.capacity_;
-    data_ = other.data_;
-    return *this;
-  }
+  USMVector(const USMVector&) = delete;
+
+  USMVector<T>& operator=(const USMVector<T>& other) = delete;
 
   T* Data() { return data_.get(); }
   const T* DataConst() const { return data_.get(); }
@@ -220,14 +223,26 @@ struct DeviceMatrix {
 
   DeviceMatrix() = default;
 
-  void Init(::sycl::queue qu, DMatrix* dmat) {
-    if (p_mat == dmat) {
+  DeviceMatrix(const DeviceMatrix& other) = delete;
+
+  DeviceMatrix& operator= (const DeviceMatrix& other) = delete;
+
+  // During training the same dmatrix is used, so we don't need reload it on device
+  bool ReinitializationRequired(DMatrix* dmat, bool training) {
+    if (!training) return true;
+    if (p_mat != dmat) return true;
+    return false;
+  }
+
+  void Init(::sycl::queue qu, DMatrix* dmat, bool training = false) {
+    qu_ = qu;
+    if (!ReinitializationRequired(dmat, training)) {
       is_from_cache = true;
       return;
     }
+
     is_from_cache = false;
     p_mat = dmat;
-    qu_ = qu;
 
     size_t num_row = 0;
     size_t num_nonzero = 0;

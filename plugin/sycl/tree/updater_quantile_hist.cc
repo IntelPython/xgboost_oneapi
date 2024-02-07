@@ -146,12 +146,12 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
   hist_sync_events_.resize(builder->nodes_for_explicit_hist_build_.size());
   for (int i = 0; i < builder->nodes_for_explicit_hist_build_.size(); i++) {
     const auto entry = builder->nodes_for_explicit_hist_build_[i];
-    auto this_hist = builder->hist_[entry.nid];
+    auto& this_hist = builder->hist_[entry.nid];
 
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
-      auto parent_hist = builder->hist_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto& parent_hist = builder->hist_[parent_id];
+      auto& sibling_hist = builder->hist_[entry.sibling_nid];
       hist_sync_events_[i] = common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                                                      this_hist, nbins, ::sycl::event());
     }
@@ -169,19 +169,19 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
   const size_t nbins = builder->hist_builder_.GetNumBins();
   for (int node = 0; node < builder->nodes_for_explicit_hist_build_.size(); node++) {
     const auto entry = builder->nodes_for_explicit_hist_build_[node];
-    auto this_hist = builder->hist_[entry.nid];
+    auto& this_hist = builder->hist_[entry.nid];
     // Store posible parent node
-    auto this_local = builder->hist_local_worker_[entry.nid];
+    auto& this_local = builder->hist_local_worker_[entry.nid];
     common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
 
     if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
-      auto parent_hist = builder->hist_local_worker_[parent_id];
-      auto sibling_hist = builder->hist_[entry.sibling_nid];
+      auto& parent_hist = builder->hist_local_worker_[parent_id];
+      auto& sibling_hist = builder->hist_[entry.sibling_nid];
       common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                               this_hist, nbins, ::sycl::event());
       // Store posible parent node
-      auto sibling_local = builder->hist_local_worker_[entry.sibling_nid];
+      auto& sibling_local = builder->hist_local_worker_[entry.sibling_nid];
       common::CopyHist(builder->qu_, &sibling_local, sibling_hist, nbins);
     }
   }
@@ -202,11 +202,11 @@ void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
   for (int node = 0; node < nodes.size(); node++) {
     const auto entry = nodes[node];
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
-      auto this_hist = builder->hist_[entry.nid];
+      auto& this_hist = builder->hist_[entry.nid];
 
       if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
-        auto parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
-        auto sibling_hist = builder->hist_[entry.sibling_nid];
+        auto& parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
+        auto& sibling_hist = builder->hist_[entry.sibling_nid];
         common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
                                 sibling_hist, nbins, ::sycl::event());
       }
@@ -219,7 +219,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ReduceHists(const std::vector<int
                                                            size_t nbins) {
   std::vector<GradientPairT> reduce_buffer(sync_ids.size() * nbins);
   for (size_t i = 0; i < sync_ids.size(); i++) {
-    auto this_hist = hist_[sync_ids[i]];
+    auto& this_hist = hist_[sync_ids[i]];
     const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
     std::copy(psrc, psrc + nbins, reduce_buffer.begin() + i * nbins);
   }
@@ -228,7 +228,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ReduceHists(const std::vector<int
     2 * nbins * sync_ids.size());
   // histred_.Allreduce(reduce_buffer.data(), nbins * sync_ids.size());
   for (size_t i = 0; i < sync_ids.size(); i++) {
-    auto this_hist = hist_[sync_ids[i]];
+    auto& this_hist = hist_[sync_ids[i]];
     GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
     std::copy(reduce_buffer.begin() + i * nbins, reduce_buffer.begin() + (i + 1) * nbins, psrc);
   }
@@ -249,7 +249,6 @@ void BatchHistRowsAdder<GradientSumT>::AddHistRows(BuilderT *builder,
     max_nid = node.nid > max_nid ? node.nid : max_nid;
   }
 
-  builder->hist_.Reserve(max_nid);
   for (auto const& entry : builder->nodes_for_explicit_hist_build_) {
     int nid = entry.nid;
     auto event = builder->hist_.AddHistRow(nid);
@@ -611,7 +610,7 @@ void QuantileHistMaker::Builder<GradientSumT>::Update(
   builder_monitor_.Start("Update");
 
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
-  tree_evaluator_ = TreeEvaluator<GradientSumT>(qu_, param_, p_fmat->Info().num_col_);
+  tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
   interaction_constraints_.Reset();
 
   this->InitData(ctx, gmat, gpair_h, gpair_device, *p_fmat, *p_tree);
@@ -847,10 +846,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
     }
 
     // initialize histogram builder
-#pragma omp parallel
-    {
-      this->nthread_ = omp_get_num_threads();
-    }
+    this->nthread_ = omp_get_num_threads();
     hist_builder_ = GHistBuilder<GradientSumT>(qu_, nbins);
 
     USMVector<size_t, MemoryType::on_device>* row_indices = &(row_set_collection_.Data());
@@ -1284,7 +1280,7 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
   }
 
   {
-    auto hist = hist_[nid];
+    auto& hist = hist_[nid];
     GradientPairT grad_stat;
     if (tree[nid].IsRoot()) {
       if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {

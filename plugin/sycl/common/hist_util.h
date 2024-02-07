@@ -6,6 +6,7 @@
 #define PLUGIN_SYCL_COMMON_HIST_UTIL_H_
 
 #include <vector>
+#include <unordered_map>
 
 #include "../data.h"
 #include "row_set.h"
@@ -62,11 +63,11 @@ class HistCollection {
 
   // Access histogram for i-th node
   GHistRowT& operator[](bst_uint nid) {
-    return data_[nid];
+    return *(data_.at(nid));
   }
 
   const GHistRowT& operator[](bst_uint nid) const {
-    return data_[nid];
+    return *(data_.at(nid));
   }
 
   // Initialize histogram collection
@@ -78,20 +79,19 @@ class HistCollection {
     }
   }
 
-  // Reserve the space for hist rows
-  void Reserve(bst_uint max_nid) {
-    data_.reserve(max_nid + 1);
-  }
-
   // Create an empty histogram for i-th node
   ::sycl::event AddHistRow(bst_uint nid) {
-    if (nid >= data_.size()) {
-      data_.resize(nid + 1);
-    }
     ::sycl::event event;
-    data_[nid].Resize(&qu_, nbins_,
-                      xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
-                      &event);
+    if (data_.count(nid) == 0) {
+      data_[nid] = 
+        std::make_shared<GHistRowT>(&qu_, nbins_,
+                                    xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
+                                    &event);
+    } else {
+      data_[nid]->Resize(&qu_, nbins_,
+                         xgboost::detail::GradientPairInternal<GradientSumT>(0, 0),
+                         &event);
+    }
     return event;
   }
 
@@ -103,7 +103,7 @@ class HistCollection {
   /*! \brief Number of all bins over all features */
   uint32_t nbins_ = 0;
 
-  std::vector<GHistRowT> data_;
+  std::unordered_map<uint32_t, std::shared_ptr<GHistRowT>> data_;
 
   ::sycl::queue qu_;
 };

@@ -45,19 +45,29 @@ class TreeEvaluator {
   bool has_constraint_;
 
  public:
-  TreeEvaluator(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
+  void Reset(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     qu_ = qu;
     if (p.monotone_constraints.empty()) {
       monotone_.Resize(&qu_, n_features, 0);
       has_constraint_ = false;
     } else {
-      monotone_ = USMVector<int32_t>(&qu_, p.monotone_constraints);
+      // monotone_ = USMVector<int32_t>(&qu_, p.monotone_constraints);
+      // monotone_.Resize(&qu_, n_features, 0);
+
       monotone_.Resize(&qu_, n_features, 0);
+      qu_.memcpy(monotone_.Data(), p.monotone_constraints.data(),
+                 sizeof(int32_t) * p.monotone_constraints.size());
+      qu_.wait();
+
       lower_bounds_.Resize(&qu_, p.MaxNodes(), -std::numeric_limits<GradType>::max());
       upper_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
       has_constraint_ = true;
     }
     param_ = TrainParam(p);
+  }
+
+  TreeEvaluator(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
+    Reset(qu, p, n_features);
   }
 
   struct SplitEvaluator {

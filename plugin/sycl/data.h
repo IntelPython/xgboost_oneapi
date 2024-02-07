@@ -291,6 +291,7 @@ struct DeviceMatrix {
   }
 
   ~DeviceMatrix() {
+    LOG(WARNING) << "DeviceMatrix::~DeviceMatrix().";
   }
 };
 }  // namespace sycl

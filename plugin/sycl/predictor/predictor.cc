@@ -289,11 +289,12 @@ class Predictor : public xgboost::Predictor {
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0, bool training = false) const override {
     cpu_predictor->PredictBatch(dmat, predts, model, tree_begin, tree_end);
-    return;
+
     ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
     predictor_monitor_.Start("InitDeviceMatrix");
     device_matrix.Init(qu, dmat, training);
     predictor_monitor_.Stop("InitDeviceMatrix");
+    return;
 
     auto* out_preds = &predts->predictions;
     if (tree_end == 0) {

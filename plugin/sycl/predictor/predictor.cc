@@ -182,16 +182,16 @@ void DevicePredictInternal(::sycl::queue* qu,
   int num_rows = dmat.row_ptr.Size() - 1;
   int num_group = model.learner_model_param->num_output_group;
 
-  fval_buff->Resize(qu, num_features * num_rows);
-  auto* fval_buff_ptr = fval_buff->Data();
-
+  bool update_buffs = !dmat.is_from_cache;  
   std::vector<::sycl::event> events(1);
-  if constexpr (any_missing) {
-    miss_buff->Resize(qu, num_features * num_rows, 1, &events[0]);
+  if (update_buffs) {
+    fval_buff->Resize(qu, num_features * num_rows);
+    if constexpr (any_missing) {
+      miss_buff->Resize(qu, num_features * num_rows, 1, &events[0]);
+    }
   }
+  auto* fval_buff_ptr = fval_buff->Data();
   auto* miss_buff_ptr = miss_buff->Data();
-
-  bool update_buffs = !dmat.is_from_cache;
 
   auto& out_preds_vec = out_preds->HostVector();
   ::sycl::buffer<float, 1> out_preds_buf(out_preds_vec.data(), out_preds_vec.size());
@@ -288,31 +288,31 @@ class Predictor : public xgboost::Predictor {
   void PredictBatch(DMatrix *dmat, PredictionCacheEntry *predts,
                     const gbm::GBTreeModel &model, uint32_t tree_begin,
                     uint32_t tree_end = 0, bool training = false) const override {
-    cpu_predictor->PredictBatch(dmat, predts, model, tree_begin, tree_end);
+    #pragma omp critical
+    {
+      ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
+      predictor_monitor_.Start("InitDeviceMatrix");
+      device_matrix.Init(qu, dmat, training);
+      predictor_monitor_.Stop("InitDeviceMatrix");
 
-    ::sycl::queue qu = device_manager.GetQueue(ctx_->Device());
-    predictor_monitor_.Start("InitDeviceMatrix");
-    device_matrix.Init(qu, dmat, training);
-    predictor_monitor_.Stop("InitDeviceMatrix");
-    return;
-
-    auto* out_preds = &predts->predictions;
-    if (tree_end == 0) {
-      tree_end = model.trees.size();
-    }
-
-    predictor_monitor_.Start("DevicePredictInternal");
-    if (tree_begin < tree_end) {
-      const bool any_missing = !(dmat->IsDense());
-      if (any_missing) {
-        DevicePredictInternal<true>(&qu, &fval_buff, &miss_buff, device_matrix,
-                                    out_preds, model, tree_begin, tree_end);
-      } else {
-        DevicePredictInternal<false>(&qu, &fval_buff, &miss_buff, device_matrix,
-                                     out_preds, model, tree_begin, tree_end);
+      auto* out_preds = &predts->predictions;
+      if (tree_end == 0) {
+        tree_end = model.trees.size();
       }
+
+      predictor_monitor_.Start("DevicePredictInternal");
+      if (tree_begin < tree_end) {
+        const bool any_missing = !(dmat->IsDense());
+        if (any_missing) {
+          DevicePredictInternal<true>(&qu, &fval_buff, &miss_buff, device_matrix,
+                                      out_preds, model, tree_begin, tree_end);
+        } else {
+          DevicePredictInternal<false>(&qu, &fval_buff, &miss_buff, device_matrix,
+                                      out_preds, model, tree_begin, tree_end);
+        }
+      }
+      predictor_monitor_.Stop("DevicePredictInternal");
     }
-    predictor_monitor_.Stop("DevicePredictInternal");
   }
 
   bool InplacePredict(std::shared_ptr<DMatrix> p_m,

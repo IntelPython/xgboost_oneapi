@@ -236,13 +236,11 @@ struct DeviceMatrix {
 
   void Init(::sycl::queue qu, DMatrix* dmat, bool training = false) {
     qu_ = qu;
-    LOG(WARNING) << "DeviceMatrix::Init" << "\t" << training;
     if (!ReinitializationRequired(dmat, training)) {
       is_from_cache = true;
       return;
     }
 
-    LOG(WARNING) << "DeviceMatrix::Init 1";
     is_from_cache = false;
     p_mat = dmat;
 
@@ -254,24 +252,21 @@ struct DeviceMatrix {
       num_nonzero += data_vec.size();
       num_row += batch.Size();
     }
-    LOG(WARNING) << "DeviceMatrix::Init 2";
 
     row_ptr.Resize(&qu_, num_row + 1);
     size_t* rows = row_ptr.Data();
     data.Resize(&qu_, num_nonzero);
 
-    LOG(WARNING) << "DeviceMatrix::Init 3";
-
     size_t data_offset = 0;
+    ::sycl::event event;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
       const auto& data_vec = batch.data.HostVector();
       const auto& offset_vec = batch.offset.HostVector();
       size_t batch_size = batch.Size();
       if (batch_size > 0) {
-        LOG(WARNING) << "DeviceMatrix::Init 4";
         const auto base_rowid = batch.base_rowid;
-        auto event = qu.memcpy(row_ptr.Data() + base_rowid, offset_vec.data(),
-                               sizeof(size_t) * batch_size);
+        event = qu.memcpy(row_ptr.Data() + base_rowid, offset_vec.data(),
+                          sizeof(size_t) * batch_size, event);
         if (base_rowid > 0) {
           qu.submit([&](::sycl::handler& cgh) {
             cgh.depends_on(event);
@@ -281,20 +276,19 @@ struct DeviceMatrix {
             });
           });
         }
-        LOG(WARNING) << "DeviceMatrix::Init 5";
-        qu.memcpy(data.Data() + data_offset, data_vec.data(),
-                  sizeof(Entry) * offset_vec[batch_size]);
+        event = qu.memcpy(data.Data() + data_offset, data_vec.data(),
+                          sizeof(Entry) * offset_vec[batch_size], event);
         data_offset += offset_vec[batch_size];
+        qu.wait();
       }
     }
-    LOG(WARNING) << "DeviceMatrix::Init 6";
     qu.submit([&](::sycl::handler& cgh) {
+      cgh.depends_on(event);
       cgh.single_task<>([=] {
         rows[num_row] = data_offset;
       });
     });
     qu.wait();
-    LOG(WARNING) << "DeviceMatrix::Init 7";
     total_offset = data_offset;
   }
 

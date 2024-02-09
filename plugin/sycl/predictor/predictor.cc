@@ -182,7 +182,7 @@ void DevicePredictInternal(::sycl::queue* qu,
   int num_rows = dmat.row_ptr.Size() - 1;
   int num_group = model.learner_model_param->num_output_group;
 
-  bool update_buffs = !dmat.is_from_cache;  
+  bool update_buffs = !dmat.is_from_cache;
   std::vector<::sycl::event> events(1);
   if (update_buffs) {
     fval_buff->Resize(qu, num_features * num_rows);

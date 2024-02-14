@@ -150,7 +150,8 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
   if (isDense) {
     index.ResizeOffset(n_offsets);
     offsets = index.Offset();
-    qu.memcpy(offsets, cut_device.Ptrs().DataConst(), sizeof(uint32_t) * n_offsets).wait_and_throw();
+    qu.memcpy(offsets, cut_device.Ptrs().DataConst(),
+              sizeof(uint32_t) * n_offsets).wait_and_throw();
   }
 
   if (isDense) {

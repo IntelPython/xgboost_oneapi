@@ -17,7 +17,6 @@ namespace common {
 uint32_t SearchBin(const bst_float* cut_values, const uint32_t* cut_ptrs, Entry const& e) {
   auto beg = cut_ptrs[e.index];
   auto end = cut_ptrs[e.index + 1];
-  const auto &values = cut_values;
   auto it = std::upper_bound(cut_values + beg, cut_values + end, e.fvalue);
   uint32_t idx = it - cut_values;
   if (idx == end) {
@@ -51,25 +50,27 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
 
 template <typename BinIdxType>
 void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
-                                    xgboost::common::Span<BinIdxType> index_data_span,
-                                    const DeviceMatrix &dmat_device,
+                                    BinIdxType* index_data,
+                                    const DeviceMatrix &dmat,
                                     size_t nbins,
                                     size_t row_stride,
                                     uint32_t* offsets) {
-  if (hit_count.size() == 0) return;
-  const xgboost::Entry *data_ptr = dmat_device.data.DataConst();
-  const bst_row_t *offset_vec = dmat_device.row_ptr.DataConst();
-  const size_t num_rows = dmat_device.row_ptr.Size() - 1;
-  BinIdxType* index_data = index_data_span.data();
+  if (nbins == 0) return;
+  const xgboost::Entry *data_ptr = dmat.data.DataConst();
+  const bst_row_t *offset_vec = dmat.row_ptr.DataConst();
+  const size_t num_rows = dmat.row_ptr.Size() - 1;
   const bst_float* cut_values = cut_device.Values().DataConst();
   const uint32_t* cut_ptrs = cut_device.Ptrs().DataConst();
-  ::sycl::buffer<size_t, 1> hit_count_buf(hit_count.data(), hit_count.size());
+  size_t* hit_count_ptr = hit_count_buff.Data();
 
-  USMVector<BinIdxType> sort_buf(&qu, num_rows * row_stride);
-  BinIdxType* sort_data = sort_buf.Data();
+  // Sparse case only
+  if (!offsets) {
+    // sort_buff has type uint8_t
+    sort_buff.Resize(&qu, num_rows * row_stride * sizeof(BinIdxType));
+  }
+  BinIdxType* sort_data = reinterpret_cast<BinIdxType*>(sort_buff.Data());
 
-  qu.submit([&](::sycl::handler& cgh) {
-    auto hit_count_acc = hit_count_buf.template get_access<::sycl::access::mode::atomic>(cgh);
+  auto event = qu.submit([&](::sycl::handler& cgh) {
     cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
       const size_t i = pid.get_id(0);
       const size_t ibegin = offset_vec[i];
@@ -79,7 +80,8 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
       for (bst_uint j = 0; j < size; ++j) {
         uint32_t idx = SearchBin(cut_values, cut_ptrs, data_ptr[ibegin + j]);
         index_data[start + j] = offsets ? idx - offsets[j] : idx;
-        ::sycl::atomic_fetch_add<size_t>(hit_count_acc[idx], 1);
+        AtomicRef<size_t> hit_count_ref(hit_count_ptr[idx]);
+        hit_count_ref.fetch_add(1);
       }
       if (!offsets) {
         // Sparse case only
@@ -89,12 +91,12 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue qu,
         }
       }
     });
-  }).wait();
+  });
+  qu.memcpy(hit_count.data(), hit_count_ptr, nbins * sizeof(size_t), event);
+  qu.wait();
 }
 
-void GHistIndexMatrix::ResizeIndex(const size_t n_offsets,
-                                         const size_t n_index,
-                                         const bool isDense) {
+void GHistIndexMatrix::ResizeIndex(size_t n_index, bool isDense) {
   if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
     index.SetBinTypeSize(BinTypeSize::kUint8BinsTypeSize);
     index.Resize((sizeof(uint8_t)) * n_index);
@@ -121,6 +123,7 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
   const uint32_t nbins = cut.Ptrs().back();
   this->nbins = nbins;
   hit_count.resize(nbins, 0);
+  hit_count_buff.Resize(&qu, nbins, 0);
 
   this->p_fmat = p_fmat_device.p_mat;
   const bool isDense = p_fmat_device.p_mat->IsDense();
@@ -136,42 +139,35 @@ void GHistIndexMatrix::Init(::sycl::queue qu,
     }
   }
 
-  const size_t n_offsets = cut.Ptrs().size() - 1;
+  const size_t n_offsets = cut_device.Ptrs().Size() - 1;
   const size_t n_rows = p_fmat_device.row_ptr.Size() - 1;
   const size_t n_index = n_rows * row_stride;
-  ResizeIndex(n_offsets, n_index, isDense);
+  ResizeIndex(n_index, isDense);
 
-  CHECK_GT(cut.Values().size(), 0U);
+  CHECK_GT(cut_device.Values().Size(), 0U);
 
   uint32_t* offsets = nullptr;
   if (isDense) {
     index.ResizeOffset(n_offsets);
     offsets = index.Offset();
-    qu.memcpy(offsets, cut.Ptrs().data(), sizeof(uint32_t) * n_offsets).wait_and_throw();
+    qu.memcpy(offsets, cut_device.Ptrs().DataConst(), sizeof(uint32_t) * n_offsets).wait_and_throw();
   }
 
   if (isDense) {
     BinTypeSize curent_bin_size = index.GetBinTypeSize();
     if (curent_bin_size == BinTypeSize::kUint8BinsTypeSize) {
-      xgboost::common::Span<uint8_t> index_data_span = {index.data<uint8_t>(),
-                                                        n_index};
-      SetIndexData(qu, index_data_span, p_fmat_device, nbins, row_stride, offsets);
+      SetIndexData(qu, index.data<uint8_t>(), p_fmat_device, nbins, row_stride, offsets);
 
     } else if (curent_bin_size == BinTypeSize::kUint16BinsTypeSize) {
-      xgboost::common::Span<uint16_t> index_data_span = {index.data<uint16_t>(),
-                                                         n_index};
-      SetIndexData(qu, index_data_span, p_fmat_device, nbins, row_stride, offsets);
+      SetIndexData(qu, index.data<uint16_t>(), p_fmat_device, nbins, row_stride, offsets);
     } else {
       CHECK_EQ(curent_bin_size, BinTypeSize::kUint32BinsTypeSize);
-      xgboost::common::Span<uint32_t> index_data_span = {index.data<uint32_t>(),
-                                                         n_index};
-      SetIndexData(qu, index_data_span, p_fmat_device, nbins, row_stride, offsets);
+      SetIndexData(qu, index.data<uint32_t>(), p_fmat_device, nbins, row_stride, offsets);
     }
   /* For sparse DMatrix we have to store index of feature for each bin
      in index field to chose right offset. So offset is nullptr and index is not reduced */
   } else {
-    xgboost::common::Span<uint32_t> index_data_span = {index.data<uint32_t>(), n_index};
-    SetIndexData(qu, index_data_span, p_fmat_device, nbins, row_stride, offsets);
+    SetIndexData(qu, index.data<uint32_t>(), p_fmat_device, nbins, row_stride, offsets);
   }
 }
 

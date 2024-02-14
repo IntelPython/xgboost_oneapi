@@ -26,9 +26,7 @@ class HistogramCuts {
  public:
   HistogramCuts() {}
 
-  explicit HistogramCuts(::sycl::queue qu) {
-    cut_ptrs_.Resize(&qu, 1, 0u);
-  }
+  explicit HistogramCuts(::sycl::queue qu) {}
 
   ~HistogramCuts() {
   }
@@ -172,6 +170,9 @@ struct GHistIndexMatrix {
   Index index;
   /*! \brief hit count of each index */
   std::vector<size_t> hit_count;
+  /*! \brief buffers for calculations */
+  USMVector<size_t, MemoryType::on_device> hit_count_buff;
+  USMVector<uint8_t, MemoryType::on_device> sort_buff;
   /*! \brief The corresponding cuts */
   xgboost::common::HistogramCuts cut;
   HistogramCuts cut_device;
@@ -186,20 +187,19 @@ struct GHistIndexMatrix {
             const sycl::DeviceMatrix& p_fmat_device, int max_num_bins);
 
   template <typename BinIdxType>
-  void SetIndexData(::sycl::queue qu, xgboost::common::Span<BinIdxType> index_data_span,
+  void SetIndexData(::sycl::queue qu, BinIdxType* index_data,
                     const sycl::DeviceMatrix &dmat_device,
                     size_t nbins, size_t row_stride, uint32_t* offsets);
 
-  void ResizeIndex(const size_t n_offsets, const size_t n_index,
-                   const bool isDense);
+  void ResizeIndex(size_t n_index, bool isDense);
 
-  inline void GetFeatureCounts(std::vector<size_t>* counts) const {
+  inline void GetFeatureCounts(size_t* counts) const {
     auto nfeature = cut_device.Ptrs().Size() - 1;
     for (unsigned fid = 0; fid < nfeature; ++fid) {
       auto ibegin = cut_device.Ptrs()[fid];
       auto iend = cut_device.Ptrs()[fid + 1];
       for (auto i = ibegin; i < iend; ++i) {
-        (*counts)[fid] += hit_count[i];
+        *(counts + fid) += hit_count[i];
       }
     }
   }

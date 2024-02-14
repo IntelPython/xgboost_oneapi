@@ -10,30 +10,10 @@
 
 #include "../../../plugin/sycl/data/gradient_index.h"
 #include "../../../plugin/sycl/device_manager.h"
+#include "sycl_helpers.h"
 #include "../helpers.h"
 
 namespace xgboost::sycl::data {
-
-template<typename T, typename Container>
-void VerifySyclVector(const USMVector<T, MemoryType::shared>& sycl_vector,
-                      const Container& host_vector) {
-  ASSERT_EQ(sycl_vector.Size(), host_vector.size());
-
-  size_t size = sycl_vector.Size();
-  for (size_t i = 0; i < size; ++i) {
-    ASSERT_EQ(sycl_vector[i], host_vector[i]);
-  }
-}
-
-template<typename T, typename Container>
-void VerifySyclVector(const std::vector<T>& sycl_vector, const Container& host_vector) {
-  ASSERT_EQ(sycl_vector.size(), host_vector.size());
-
-  size_t size = sycl_vector.size();
-  for (size_t i = 0; i < size; ++i) {
-    ASSERT_EQ(sycl_vector[i], host_vector[i]);
-  }
-}
 
 TEST(SyclGradientIndex, HistogramCuts) {
   size_t max_bins = 8;
@@ -97,4 +77,4 @@ TEST(SyclGradientIndex, Init) {
   }
 }
 
-}  // namespace xgboost::data
+}  // namespace xgboost::sycl::data

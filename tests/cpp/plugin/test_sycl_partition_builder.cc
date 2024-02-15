@@ -88,4 +88,4 @@ TEST(SyclPartitionBuilder, BasicTest) {
   }
 }
 
-}  // namespace xgboost::common
+}  // namespace xgboost::sycl::common

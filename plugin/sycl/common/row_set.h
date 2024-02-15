@@ -4,8 +4,11 @@
 #ifndef PLUGIN_SYCL_COMMON_ROW_SET_H_
 #define PLUGIN_SYCL_COMMON_ROW_SET_H_
 
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <xgboost/data.h>
+#pragma GCC diagnostic pop
 #include <algorithm>
 #include <vector>
 #include <utility>
@@ -42,11 +45,9 @@ class RowSetCollection {
     }
   };
 
-
   inline size_t Size() const {
     return elem_of_each_node_.size();
   }
-
 
   /*! \brief return corresponding element set given the node_id */
   inline const Elem& operator[](unsigned node_id) const {
@@ -56,13 +57,11 @@ class RowSetCollection {
     return e;
   }
 
-
   /*! \brief return corresponding element set given the node_id */
   inline Elem& operator[](unsigned node_id) {
     Elem& e = elem_of_each_node_[node_id];
     return e;
   }
-
 
   // clear up things
   inline void Clear() {
@@ -72,15 +71,12 @@ class RowSetCollection {
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
 
-
     const size_t* begin = row_indices_.Begin();
     const size_t* end = row_indices_.End();
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
 
-
-  USMVector<size_t, MemoryType::on_device>& Data() { return row_indices_; }
-
+  auto& Data() { return row_indices_; }
 
   // split rowset into two
   inline void AddSplit(unsigned node_id,
@@ -111,7 +107,6 @@ class RowSetCollection {
     elem_of_each_node_[right_node_id] = Elem(begin + n_left, e.end, right_node_id);
     elem_of_each_node_[node_id] = Elem(nullptr, nullptr, -1);
   }
-
 
  private:
   // stores the row indexes in the set

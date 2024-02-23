@@ -367,7 +367,6 @@ class QuantileHistMaker: public TreeUpdater {
                                 RegTree *p_tree,
                                 int *num_leaves,
                                 int depth,
-                                unsigned *timestamp,
                                 std::vector<ExpandEntry> *temp_qexpand_depth);
 
     void AddSplitsToTree(
@@ -375,7 +374,6 @@ class QuantileHistMaker: public TreeUpdater {
               RegTree *p_tree,
               int *num_leaves,
               int depth,
-              unsigned *timestamp,
               std::vector<ExpandEntry>* nodes_for_apply_split,
               std::vector<ExpandEntry>* temp_qexpand_depth);
 
@@ -388,10 +386,10 @@ class QuantileHistMaker: public TreeUpdater {
     void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
 
     inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
-      if (lhs.loss_chg == rhs.loss_chg) {
-        return lhs.timestamp > rhs.timestamp;  // favor small timestamp
+      if (lhs.GetLossChange() == rhs.GetLossChange()) {
+        return lhs.GetNodeId() > rhs.GetNodeId();  // favor small timestamp
       } else {
-        return lhs.loss_chg < rhs.loss_chg;  // favor large loss_chg
+        return lhs.GetLossChange() < rhs.GetLossChange();  // favor large loss_chg
       }
     }
     //  --data fields--

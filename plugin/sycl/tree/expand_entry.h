@@ -1,6 +1,6 @@
 /*!
- * Copyright 2017-2021 by Contributors
- * \file updater_quantile_hist.h
+ * Copyright 2017-2024 by Contributors
+ * \file expand_entry.h
  */
 #ifndef PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
 #define PLUGIN_SYCL_TREE_EXPAND_ENTRY_H_
@@ -9,29 +9,37 @@
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../src/tree/constraints.h"
 #pragma GCC diagnostic pop
+#include "../../src/tree/hist/expand_entry.h"
 
 namespace xgboost {
 namespace sycl {
 namespace tree {
 /* tree growing policies */
-struct ExpandEntry {
-  static const int kRootNid  = 0;
-  static const int kEmptyNid = -1;
-  int nid;
-  int sibling_nid;
-  int depth;
-  bst_float loss_chg;
-  unsigned timestamp;
-  ExpandEntry(int nid, int sibling_nid, int depth, bst_float loss_chg,
-              unsigned tstmp)
-      : nid(nid), sibling_nid(sibling_nid), depth(depth),
-        loss_chg(loss_chg), timestamp(tstmp) {}
+struct ExpandEntry : public xgboost::tree::ExpandEntryImpl<ExpandEntry> {
+  static constexpr bst_node_t kRootNid  = 0;
 
-  bool IsValid(xgboost::tree::TrainParam const &param, int32_t num_leaves) const {
-    bool ret = loss_chg <= kRtEps ||
-                (param.max_depth > 0 && this->depth == param.max_depth) ||
-                (param.max_leaves > 0 && num_leaves == param.max_leaves);
-    return ret;
+  xgboost::tree::SplitEntry split;
+
+  ExpandEntry(int nid, int depth) : ExpandEntryImpl{nid, depth} {}
+
+  inline bst_node_t GetSiblingId(const xgboost::RegTree* p_tree) const {
+    CHECK_EQ((*p_tree)[nid].IsRoot(), false);
+    const size_t parent_id = (*p_tree)[nid].Parent();
+    return GetSiblingId(p_tree, parent_id);
+  }
+
+  inline bst_node_t GetSiblingId(const xgboost::RegTree* p_tree, size_t parent_id) const {
+    return p_tree->IsLeftChild(nid) ? p_tree->RightChild(parent_id)
+                                    : p_tree->LeftChild(parent_id);
+  }
+
+  bool IsValidImpl(xgboost::tree::TrainParam const &param, int32_t num_leaves) const {
+    if (split.loss_chg <= kRtEps) return false;
+    if (split.loss_chg < param.min_split_loss) return false;
+    if (param.max_depth > 0 && depth == param.max_depth) return false;
+    if (param.max_leaves > 0 && num_leaves == param.max_leaves) return false;
+
+    return true;
   }
 };
 

@@ -148,10 +148,10 @@ void BatchHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT *builder,
     const auto entry = builder->nodes_for_explicit_hist_build_[i];
     auto& this_hist = builder->hist_[entry.nid];
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
       auto& parent_hist = builder->hist_[parent_id];
-      auto& sibling_hist = builder->hist_[entry.sibling_nid];
+      auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
       hist_sync_events_[i] = common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                                                      this_hist, nbins, ::sycl::event());
     }
@@ -174,14 +174,15 @@ void DistributedHistSynchronizer<GradientSumT>::SyncHistograms(BuilderT* builder
     auto& this_local = builder->hist_local_worker_[entry.nid];
     common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
 
-    if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
+    if (!(*p_tree)[entry.nid].IsRoot()) {
       const size_t parent_id = (*p_tree)[entry.nid].Parent();
+      auto sibling_nid = entry.GetSiblingId(p_tree, parent_id);
       auto& parent_hist = builder->hist_local_worker_[parent_id];
-      auto& sibling_hist = builder->hist_[entry.sibling_nid];
+      auto& sibling_hist = builder->hist_[sibling_nid];
       common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                               this_hist, nbins, ::sycl::event());
       // Store posible parent node
-      auto& sibling_local = builder->hist_local_worker_[entry.sibling_nid];
+      auto& sibling_local = builder->hist_local_worker_[sibling_nid];
       common::CopyHist(builder->qu_, &sibling_local, sibling_hist, nbins);
     }
   }
@@ -204,9 +205,10 @@ void DistributedHistSynchronizer<GradientSumT>::ParallelSubtractionHist(
     if (!((*p_tree)[entry.nid].IsLeftChild())) {
       auto& this_hist = builder->hist_[entry.nid];
 
-      if (!(*p_tree)[entry.nid].IsRoot() && entry.sibling_nid > -1) {
-        auto& parent_hist = builder->hist_[(*p_tree)[entry.nid].Parent()];
-        auto& sibling_hist = builder->hist_[entry.sibling_nid];
+      if (!(*p_tree)[entry.nid].IsRoot()) {
+        const size_t parent_id = (*p_tree)[entry.nid].Parent();
+        auto& parent_hist = builder->hist_[parent_id];
+        auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
         common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
                                 sibling_hist, nbins, ::sycl::event());
       }
@@ -316,9 +318,9 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildHistogramsLossGuide(
   nodes_for_subtraction_trick_.clear();
   nodes_for_explicit_hist_build_.push_back(entry);
 
-  if (entry.sibling_nid > -1) {
-    nodes_for_subtraction_trick_.emplace_back(entry.sibling_nid, entry.nid,
-        p_tree->GetDepth(entry.sibling_nid), 0.0f, 0);
+  if (!(*p_tree)[entry.nid].IsRoot()) {
+    auto sibling_id = entry.GetSiblingId(p_tree);
+    nodes_for_subtraction_trick_.emplace_back(sibling_id, p_tree->GetDepth(sibling_id));
   }
 
   std::vector<int> sync_ids;
@@ -390,7 +392,6 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
     RegTree *p_tree,
     int *num_leaves,
     int depth,
-    unsigned *timestamp,
     std::vector<ExpandEntry>* nodes_for_apply_split,
     std::vector<ExpandEntry>* temp_qexpand_depth) {
   auto evaluator = tree_evaluator_.GetEvaluator();
@@ -417,10 +418,8 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
 
       int left_id = (*p_tree)[nid].LeftChild();
       int right_id = (*p_tree)[nid].RightChild();
-      temp_qexpand_depth->push_back(ExpandEntry(left_id, right_id,
-                                                p_tree->GetDepth(left_id), 0.0, (*timestamp)++));
-      temp_qexpand_depth->push_back(ExpandEntry(right_id, left_id,
-                                                p_tree->GetDepth(right_id), 0.0, (*timestamp)++));
+      temp_qexpand_depth->push_back(ExpandEntry(left_id,  p_tree->GetDepth(left_id)));
+      temp_qexpand_depth->push_back(ExpandEntry(right_id, p_tree->GetDepth(right_id)));
       // - 1 parent + 2 new children
       (*num_leaves)++;
     }
@@ -433,12 +432,11 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateAndApplySplits(
     RegTree *p_tree,
     int *num_leaves,
     int depth,
-    unsigned *timestamp,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
   EvaluateSplits(qexpand_depth_wise_, gmat, hist_, *p_tree);
 
   std::vector<ExpandEntry> nodes_for_apply_split;
-  AddSplitsToTree(gmat, p_tree, num_leaves, depth, timestamp,
+  AddSplitsToTree(gmat, p_tree, num_leaves, depth,
                   &nodes_for_apply_split, temp_qexpand_depth);
   ApplySplit(nodes_for_apply_split, gmat, hist_, p_tree);
 }
@@ -486,12 +484,11 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithDepthWise(
     RegTree *p_tree,
     const std::vector<GradientPair> &gpair,
     const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
-  unsigned timestamp = 0;
   int num_leaves = 0;
 
   // in depth_wise growing, we feed loss_chg with 0.0 since it is not used anyway
-  qexpand_depth_wise_.emplace_back(ExpandEntry(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
-      p_tree->GetDepth(ExpandEntry::kRootNid), 0.0, timestamp++));
+  qexpand_depth_wise_.emplace_back(ExpandEntry::kRootNid,
+                                   p_tree->GetDepth(ExpandEntry::kRootNid));
   ++num_leaves;
   for (int depth = 0; depth < param_.max_depth + 1; depth++) {
     std::vector<int> sync_ids;
@@ -503,7 +500,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithDepthWise(
     hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
     BuildNodeStats(gmat, p_fmat, p_tree, gpair);
 
-    EvaluateAndApplySplits(gmat, p_tree, &num_leaves, depth, &timestamp,
+    EvaluateAndApplySplits(gmat, p_tree, &num_leaves, depth,
                    &temp_qexpand_depth);
 
     // clean up
@@ -527,18 +524,16 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
     const std::vector<GradientPair> &gpair,
     const USMVector<GradientPair, MemoryType::on_device> &gpair_device) {
   builder_monitor_.Start("ExpandWithLossGuide");
-  unsigned timestamp = 0;
   int num_leaves = 0;
   const auto lr = param_.learning_rate;
 
-  ExpandEntry node(ExpandEntry::kRootNid, ExpandEntry::kEmptyNid,
-      p_tree->GetDepth(0), 0.0f, timestamp++);
+  ExpandEntry node(ExpandEntry::kRootNid, p_tree->GetDepth(ExpandEntry::kRootNid));
   BuildHistogramsLossGuide(node, gmat, p_tree, gpair_device);
 
   this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair, *p_fmat, *p_tree);
 
   this->EvaluateSplits({node}, gmat, hist_, *p_tree);
-  node.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
+  node.split.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
 
   qexpand_loss_guided_->push(node);
   ++num_leaves;
@@ -547,7 +542,7 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
     const ExpandEntry candidate = qexpand_loss_guided_->top();
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
-    if (candidate.IsValid(param_, num_leaves)) {
+    if (!candidate.IsValid(param_, num_leaves)) {
       (*p_tree)[nid].SetLeaf(snode_[nid].weight * lr);
     } else {
       auto evaluator = tree_evaluator_.GetEvaluator();
@@ -566,10 +561,8 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
 
-      ExpandEntry left_node(cleft, cright, p_tree->GetDepth(cleft),
-                            0.0f, timestamp++);
-      ExpandEntry right_node(cright, cleft, p_tree->GetDepth(cright),
-                            0.0f, timestamp++);
+      ExpandEntry left_node(cleft, p_tree->GetDepth(cleft));
+      ExpandEntry right_node(cright, p_tree->GetDepth(cright));
 
       if (row_set_collection_[cleft].Size() < row_set_collection_[cright].Size()) {
         BuildHistogramsLossGuide(left_node, gmat, p_tree, gpair_device);
@@ -585,8 +578,8 @@ void QuantileHistMaker::Builder<GradientSumT>::ExpandWithLossGuide(
       interaction_constraints_.Split(nid, featureid, cleft, cright);
 
       this->EvaluateSplits({left_node, right_node}, gmat, hist_, *p_tree);
-      left_node.loss_chg = snode_[cleft].best.loss_chg;
-      right_node.loss_chg = snode_[cright].best.loss_chg;
+      left_node.split.loss_chg = snode_[cleft].best.loss_chg;
+      right_node.split.loss_chg = snode_[cright].best.loss_chg;
 
       qexpand_loss_guided_->push(left_node);
       qexpand_loss_guided_->push(right_node);

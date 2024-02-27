@@ -66,7 +66,9 @@ void TestPartitioning(float sparsity, int max_bins) {
   partition_builder.MergeToArray(0, data_result, &event);
   qu.wait_and_throw();
 
+  std::stringstream ss;
   bst_float split_pt = gmat.cut.Values()[split_conditions[0]];
+  ss << "split_pt = " << split_pt << "\n";
 
   std::vector<size_t> ridx_left;
   std::vector<size_t> ridx_right;
@@ -77,8 +79,10 @@ void TestPartitioning(float sparsity, int max_bins) {
     size_t begin = offset_vec[0];
     for (size_t idx = 0; idx < offset_vec.size() - 1; ++idx) {
       size_t end = offset_vec[idx + 1];
+      ss << "idx = " << idx << "\tbegin = " << begin << "\tend = " << end;
       if (begin < end) {
         const auto& entry = data_vec[begin];
+        ss << "fvalue = " << entry.fvalue;
         if (entry.fvalue < split_pt) {
           ridx_left.push_back(idx);
         } else {
@@ -86,12 +90,14 @@ void TestPartitioning(float sparsity, int max_bins) {
         }
       } else {
         // missing value
+        ss << "default_left = " << tree[0].DefaultLeft();
         if (tree[0].DefaultLeft()) {
           ridx_left.push_back(idx);
         } else {
           ridx_right.push_back(idx);
         }
       }
+      ss << "\n";
       begin = end;
     }
   }
@@ -99,15 +105,19 @@ void TestPartitioning(float sparsity, int max_bins) {
   std::vector<size_t> row_indices_host(num_rows);
   qu.memcpy(row_indices_host.data(), row_indices.Data(), num_rows * sizeof(size_t));
   qu.wait_and_throw();
-
-  ASSERT_EQ(ridx_left.size(),  partition_builder.GetNLeftElems(0));
-  for (size_t i = 0; i < ridx_left.size(); ++i) {
-    ASSERT_EQ(ridx_left[i], row_indices_host[i]);
+  ss << "row_indices = ";
+  for (auto idx : row_indices_host) {
+    ss << idx << "\t";
   }
 
-  ASSERT_EQ(ridx_right.size(), partition_builder.GetNRightElems(0));
+  ASSERT_EQ(ridx_left.size(),  partition_builder.GetNLeftElems(0)) << ss.str();
+  for (size_t i = 0; i < ridx_left.size(); ++i) {
+    ASSERT_EQ(ridx_left[i], row_indices_host[i]) << ss.str();
+  }
+
+  ASSERT_EQ(ridx_right.size(), partition_builder.GetNRightElems(0)) << ss.str();
   for (size_t i = 0; i < ridx_right.size(); ++i) {
-    ASSERT_EQ(ridx_right[i], row_indices_host[num_rows - 1 - i]);
+    ASSERT_EQ(ridx_right[i], row_indices_host[num_rows - 1 - i]) << ss.str();
   }
 }
 

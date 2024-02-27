@@ -190,9 +190,15 @@ TEST(SyclPartitionBuilder, PartitioningSparce) {
   TestPartitioning(0.3, 256);
 }
 
-TEST(SyclPartitionBuilder, PartitioningDence) {
+TEST(SyclPartitionBuilder, PartitioningDence8Bits) {
   TestPartitioning(0.0, 256);
+}
+
+TEST(SyclPartitionBuilder, PartitioningDence16Bits) {
   TestPartitioning(0.0, 256 + 1);
+}
+
+TEST(SyclPartitionBuilder, PartitioningDence32Bits) {
   TestPartitioning(0.0, (1u << 16) + 1);
 }
 

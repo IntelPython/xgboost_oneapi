@@ -13,15 +13,29 @@
 
 namespace xgboost::sycl::common {
 
-template <typename BinIdxType>
-void TestPartitioning(::sycl::queue* qu, size_t num_rows, const common::GHistIndexMatrix& gmat,
-                      const xgboost::GHistIndexMatrix& gmat_host) {
+void TestPartitioning(float sparsity, int max_bins) {
+  const size_t num_rows = 16;
+  const size_t num_columns = 1;
+
+  Context ctx;
+  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
+
+  DeviceManager device_manager;
+  auto qu = device_manager.GetQueue(ctx.Device());
+
+  auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
+  sycl::DeviceMatrix dmat;
+  dmat.Init(qu, p_fmat.get());
+
+  common::GHistIndexMatrix gmat;
+  gmat.Init(qu, &ctx, dmat, max_bins);
+
   RowSetCollection row_set_collection;
   auto& row_indices = row_set_collection.Data();
-  row_indices.Resize(qu, num_rows);
+  row_indices.Resize(&qu, num_rows);
   size_t* p_row_indices = row_indices.Data();
 
-  qu->submit([&](::sycl::handler& cgh) {
+  qu.submit([&](::sycl::handler& cgh) {
     cgh.parallel_for<>(::sycl::range<1>(num_rows),
                        [p_row_indices](::sycl::item<1> pid) {
       const size_t idx = pid.get_id(0);
@@ -35,7 +49,7 @@ void TestPartitioning(::sycl::queue* qu, size_t num_rows, const common::GHistInd
 
   const size_t n_nodes = row_set_collection.Size();
   PartitionBuilder partition_builder;
-  partition_builder.Init(qu, n_nodes, [&](size_t nid) {
+  partition_builder.Init(&qu, n_nodes, [&](size_t nid) {
     return row_set_collection[nid].Size();
   });
 
@@ -46,11 +60,11 @@ void TestPartitioning(::sycl::queue* qu, size_t num_rows, const common::GHistInd
   std::vector<int32_t> split_conditions = {2};
   partition_builder.Partition(gmat, nodes, row_set_collection,
                     split_conditions, &tree, &event);
-  qu->wait_and_throw();
+  qu.wait_and_throw();
 
   size_t* data_result = const_cast<size_t*>(row_set_collection[0].begin);
   partition_builder.MergeToArray(0, data_result, &event);
-  qu->wait_and_throw();
+  qu.wait_and_throw();
 
   bst_float split_pt = gmat.cut.Values()[split_conditions[0]];
 
@@ -83,8 +97,8 @@ void TestPartitioning(::sycl::queue* qu, size_t num_rows, const common::GHistInd
   }
 
   std::vector<size_t> row_indices_host(num_rows);
-  qu->memcpy(row_indices_host.data(), row_indices.Data(), num_rows * sizeof(size_t));
-  qu->wait_and_throw();
+  qu.memcpy(row_indices_host.data(), row_indices.Data(), num_rows * sizeof(size_t));
+  qu.wait_and_throw();
 
   ASSERT_EQ(ridx_left.size(),  partition_builder.GetNLeftElems(0));
   for (size_t i = 0; i < ridx_left.size(); ++i) {
@@ -94,39 +108,6 @@ void TestPartitioning(::sycl::queue* qu, size_t num_rows, const common::GHistInd
   ASSERT_EQ(ridx_right.size(), partition_builder.GetNRightElems(0));
   for (size_t i = 0; i < ridx_right.size(); ++i) {
     ASSERT_EQ(ridx_right[i], row_indices_host[num_rows - 1 - i]);
-  }
-}
-
-void TestPartitioning(float sparsity, int max_bins) {
-  const size_t num_rows = 16;
-  const size_t num_columns = 1;
-
-  Context ctx;
-  ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
-
-  DeviceManager device_manager;
-  auto qu = device_manager.GetQueue(ctx.Device());
-
-  auto p_fmat = RandomDataGenerator{num_rows, num_columns, sparsity}.GenerateDMatrix();
-  sycl::DeviceMatrix dmat;
-  dmat.Init(qu, p_fmat.get());
-
-  common::GHistIndexMatrix gmat;
-  gmat.Init(qu, &ctx, dmat, max_bins);
-
-  xgboost::GHistIndexMatrix gmat_host{&ctx, p_fmat.get(), max_bins, sparsity, false};
-  switch (gmat.index.GetBinTypeSize()) {
-    case common::BinTypeSize::kUint8BinsTypeSize:
-      TestPartitioning<uint8_t>(&qu, num_rows, gmat, gmat_host);
-      break;
-    case common::BinTypeSize::kUint16BinsTypeSize:
-      TestPartitioning<uint16_t>(&qu, num_rows, gmat, gmat_host); 
-      break;
-    case common::BinTypeSize::kUint32BinsTypeSize:
-      TestPartitioning<uint32_t>(&qu, num_rows, gmat, gmat_host);
-      break;
-    default:
-      CHECK(false);  // no default behavior
   }
 }
 

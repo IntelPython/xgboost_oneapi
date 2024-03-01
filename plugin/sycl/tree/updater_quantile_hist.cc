@@ -1052,7 +1052,7 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
               &(split_queries_device[i].best), fid, nid, evaluator_device, param_device);
     });
   });
-  event = qu_.memcpy(split_queries_host_.data(), split_queries_device_.Data(), 
+  event = qu_.memcpy(split_queries_host_.data(), split_queries_device_.Data(),
                      total_features * sizeof(SplitQuery), event);
 
   qu_.wait();

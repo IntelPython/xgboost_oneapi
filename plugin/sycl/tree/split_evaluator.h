@@ -71,9 +71,9 @@ class TreeEvaluator {
   }
 
   struct SplitEvaluator {
-    int* constraints;
-    GradType* lower;
-    GradType* upper;
+    const int* constraints;
+    const GradType* lower;
+    const GradType* upper;
     bool has_constraint;
     TrainParam param;
 

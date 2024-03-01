@@ -399,7 +399,8 @@ class QuantileHistMaker: public TreeUpdater {
     xgboost::common::ColumnSampler column_sampler_;
     // the internal row sets
     RowSetCollection row_set_collection_;
-    USMVector<SplitQuery> split_queries_device_;
+    std::vector<SplitQuery> split_queries_host_;
+    USMVector<SplitQuery, MemoryType::on_device> split_queries_device_;
     /*! \brief TreeNode Data: statistics for each constructed node */
     USMVector<NodeEntry<GradientSumT>> snode_;
     /*! \brief culmulative histogram of gradients. */

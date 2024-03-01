@@ -394,6 +394,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
     int depth,
     std::vector<ExpandEntry>* nodes_for_apply_split,
     std::vector<ExpandEntry>* temp_qexpand_depth) {
+  builder_monitor_.Start("AddSplitsToTree");
   auto evaluator = tree_evaluator_.GetEvaluator();
   for (auto const& entry : qexpand_depth_wise_) {
     const auto lr = param_.learning_rate;
@@ -424,6 +425,7 @@ void QuantileHistMaker::Builder<GradientSumT>::AddSplitsToTree(
       (*num_leaves)++;
     }
   }
+  builder_monitor_.Stop("AddSplitsToTree");
 }
 
 template<typename GradientSumT>
@@ -1002,9 +1004,7 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
     }
   }
 
-  split_queries_device_.Clear();
-  split_queries_device_.Resize(&qu_, total_features);
-
+  split_queries_host_.resize(total_features);
   size_t pos = 0;
 
   const size_t local_size = 16;
@@ -1015,14 +1015,18 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
     for (size_t idx = 0; idx < features_sets[nid_in_set]->Size(); idx++) {
       const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {
-        split_queries_device_[pos].nid = nid;
-        split_queries_device_[pos].fid = fid;
-        split_queries_device_[pos].hist = hist[nid].DataConst();
-        split_queries_device_[pos].best = snode_[nid].best;
+        split_queries_host_[pos].nid = nid;
+        split_queries_host_[pos].fid = fid;
+        split_queries_host_[pos].hist = hist[nid].DataConst();
+        split_queries_host_[pos].best = snode_[nid].best;
         pos++;
       }
     }
   }
+
+  split_queries_device_.Resize(&qu_, total_features);
+  auto event = qu_.memcpy(split_queries_device_.Data(), split_queries_host_.data(),
+                          total_features * sizeof(SplitQuery));
 
   auto evaluator = tree_evaluator_.GetEvaluator();
   SplitQuery* split_queries_device = split_queries_device_.Data();
@@ -1032,8 +1036,8 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
   const NodeEntry<GradientSumT>* snode = snode_.DataConst();
 
   TrainParam param(param_);
-
-  qu_.submit([&](::sycl::handler& cgh) {
+  event = qu_.submit([&](::sycl::handler& cgh) {
+    cgh.depends_on(event);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(total_features, local_size),
                                            ::sycl::range<2>(1, local_size)),
                        [=](::sycl::nd_item<2> pid) [[intel::reqd_sub_group_size(16)]] {
@@ -1047,11 +1051,14 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
       auto grad_stats = EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
               &(split_queries_device[i].best), fid, nid, evaluator_device, param_device);
     });
-  }).wait();
+  });
+  event = qu_.memcpy(split_queries_host_.data(), split_queries_device_.Data(), 
+                     total_features * sizeof(SplitQuery), event);
 
+  qu_.wait();
   for (size_t i = 0; i < total_features; i++) {
-    int nid = split_queries_device[i].nid;
-    snode_[nid].best.Update(split_queries_device[i].best);
+    int nid = split_queries_host_[i].nid;
+    snode_[nid].best.Update(split_queries_host_[i].best);
   }
 
   builder_monitor_.Stop("EvaluateSplits");

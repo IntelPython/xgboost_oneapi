@@ -282,20 +282,12 @@ class QuantileHistMaker: public TreeUpdater {
     // Enumerate the split values of specific feature
     // Returns the sum of gradients corresponding to the data points that contains a non-missing
     // value for the particular feature fid.
-    template <int d_step>
-    static GradStats<GradientSumT> EnumerateSplit(
-        const uint32_t* cut_ptr, const bst_float* cut_val, const bst_float* cut_minval,
-        const GradientPairT* hist_data, const NodeEntry<GradientSumT> &snode,
-        SplitEntry<GradientSumT>* p_best, bst_uint fid, bst_uint nodeID,
-        typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
-        const TrainParam& param);
-
-    static GradStats<GradientSumT> EnumerateSplit(const ::sycl::sub_group& sg,
+    static void EnumerateSplit(const ::sycl::sub_group& sg,
         const uint32_t* cut_ptr, const bst_float* cut_val, const GradientPairT* hist_data,
         const NodeEntry<GradientSumT> &snode, SplitEntry<GradientSumT>* p_best, bst_uint fid,
         bst_uint nodeID,
         typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
-        const TrainParam& param);
+        float min_child_weight);
 
     void ApplySplit(std::vector<ExpandEntry> nodes,
                         const GHistIndexMatrix& gmat,

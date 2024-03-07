@@ -1007,8 +1007,6 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
   split_queries_host_.resize(total_features);
   size_t pos = 0;
 
-  const size_t local_size = 16;
-
   for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
     const size_t nid = nodes_set[nid_in_set].nid;
 
@@ -1035,21 +1033,21 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
   const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
   const NodeEntry<GradientSumT>* snode = snode_.DataConst();
 
-  TrainParam param(param_);
+  const float min_child_weight = param_.min_child_weight;
+  const size_t local_size = 16;
   event = qu_.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(total_features, local_size),
                                            ::sycl::range<2>(1, local_size)),
-                       [=](::sycl::nd_item<2> pid) [[intel::reqd_sub_group_size(16)]] {
-      TrainParam param_device(param);
-      typename TreeEvaluator<GradientSumT>::SplitEvaluator evaluator_device = evaluator;
+                       [=](::sycl::nd_item<2> pid) [[intel::reqd_sub_group_size(local_size)]] {
       int i = pid.get_global_id(0);
       auto sg = pid.get_sub_group();
       int nid = split_queries_device[i].nid;
       int fid = split_queries_device[i].fid;
       const GradientPairT* hist_data = split_queries_device[i].hist;
-      auto grad_stats = EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
-              &(split_queries_device[i].best), fid, nid, evaluator_device, param_device);
+
+      EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
+              &(split_queries_device[i].best), fid, nid, evaluator, min_child_weight);
     });
   });
   event = qu_.memcpy(split_queries_host_.data(), split_queries_device_.Data(),
@@ -1068,73 +1066,7 @@ void QuantileHistMaker::Builder<GradientSumT>::EvaluateSplits(
 // Returns the sum of gradients corresponding to the data points that contains a non-missing value
 // for the particular feature fid.
 template <typename GradientSumT>
-template <int d_step>
-GradStats<GradientSumT> QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
-    const uint32_t* cut_ptr,
-    const bst_float* cut_val,
-    const bst_float* cut_minval,
-    const GradientPairT* hist_data,
-    const NodeEntry<GradientSumT>& snode,
-    SplitEntry<GradientSumT>* p_best,
-    bst_uint fid,
-    bst_uint nodeID,
-    typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator_device,
-    const TrainParam& param) {
-  GradStats<GradientSumT> c;
-  GradStats<GradientSumT> e;
-  // best split so far
-  SplitEntry<GradientSumT> best;
-
-  // bin boundaries
-  // imin: index (offset) of the minimum value for feature fid
-  //       need this for backward enumeration
-  const auto imin = static_cast<int32_t>(cut_ptr[fid]);
-  // ibegin, iend: smallest/largest cut points for feature fid
-  // use int to allow for value -1
-  int32_t ibegin, iend;
-  if (d_step > 0) {
-    ibegin = static_cast<int32_t>(cut_ptr[fid]);
-    iend = static_cast<int32_t>(cut_ptr[fid + 1]);
-  } else {
-    ibegin = static_cast<int32_t>(cut_ptr[fid + 1]) - 1;
-    iend = static_cast<int32_t>(cut_ptr[fid]) - 1;
-  }
-
-  for (int32_t i = ibegin; i != iend; i += d_step) {
-    e.Add(hist_data[i].GetGrad(), hist_data[i].GetHess());
-    if (e.GetHess() >= param.min_child_weight) {
-      c.SetSubstract(snode.stats, e);
-      if (c.GetHess() >= param.min_child_weight) {
-        bst_float loss_chg;
-        bst_float split_pt;
-        if (d_step > 0) {
-          loss_chg = static_cast<bst_float>(
-              evaluator_device.CalcSplitGain(nodeID, fid, e, c) - snode.root_gain);
-          split_pt = cut_val[i];
-          best.Update(loss_chg, fid, split_pt, d_step == -1, e, c);
-        } else {
-          loss_chg = static_cast<bst_float>(
-              evaluator_device.CalcSplitGain(nodeID, fid, GradStats<GradientSumT>{c},
-                                             GradStats<GradientSumT>{e}) - snode.root_gain);
-          if (i == imin) {
-            split_pt = cut_minval[fid];
-          } else {
-            split_pt = cut_val[i - 1];
-          }
-          best.Update(loss_chg, fid, split_pt, d_step == -1, c, e);
-        }
-      }
-    }
-  }
-  p_best->Update(best);
-  return e;
-}
-
-// Enumerate the split values of specific feature.
-// Returns the sum of gradients corresponding to the data points that contains a non-missing value
-// for the particular feature fid.
-template <typename GradientSumT>
-GradStats<GradientSumT> QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
+void QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
     const ::sycl::sub_group& sg,
     const uint32_t* cut_ptr,
     const bst_float* cut_val,
@@ -1143,42 +1075,40 @@ GradStats<GradientSumT> QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit
     SplitEntry<GradientSumT>* p_best,
     bst_uint fid,
     bst_uint nodeID,
-    typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator_device,
-    const TrainParam& param) {
+    typename TreeEvaluator<GradientSumT>::SplitEvaluator const &evaluator,
+    float min_child_weight) {
   SplitEntry<GradientSumT> best;
 
   int32_t ibegin = static_cast<int32_t>(cut_ptr[fid]);
   int32_t iend = static_cast<int32_t>(cut_ptr[fid + 1]);
 
-  GradientSumT tot_grad = snode.stats.GetGrad();
-  GradientSumT tot_hess = snode.stats.GetHess();
-
-  GradientSumT sum_grad = 0.0f;
-  GradientSumT sum_hess = 0.0f;
+  GradStats<GradientSumT> sum(0, 0);
 
   int32_t local_size = sg.get_local_range().size();
+  const size_t local_id = sg.get_local_id()[0];
 
-  for (int32_t i = ibegin + sg.get_local_id(); i < iend; i += local_size) {
-    GradientSumT e_grad = sum_grad + ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetGrad(),
-                                                                       std::plus<>());
-    GradientSumT e_hess = sum_hess + ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetHess(),
-                                                                       std::plus<>());
-    if (e_hess >= param.min_child_weight) {
-      GradientSumT c_grad = tot_grad - e_grad;
-      GradientSumT c_hess = tot_hess - e_hess;
-      if (c_hess >= param.min_child_weight) {
-        GradStats<GradientSumT> e(e_grad, e_hess);
-        GradStats<GradientSumT> c(c_grad, c_hess);
-        bst_float loss_chg;
-        bst_float split_pt;
-        loss_chg = static_cast<bst_float>(
-            evaluator_device.CalcSplitGain(nodeID, fid, e, c) - snode.root_gain);
-        split_pt = cut_val[i];
-        best.Update(loss_chg, fid, split_pt, false, e, c);
+  for (int32_t i = ibegin + local_id; i < iend; i += local_size) {
+    sum += GradStats<GradientSumT>(
+              ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetGrad(), std::plus<>()),
+              ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetHess(), std::plus<>()));
+
+    if (sum.GetHess() >= min_child_weight) {
+      GradStats<GradientSumT> c = snode.stats - sum;
+      if (c.GetHess() >= min_child_weight) {
+        bst_float loss_chg = evaluator.CalcSplitGain(nodeID, fid, sum, c) - snode.root_gain;
+        bst_float split_pt = cut_val[i];
+        best.Update(loss_chg, fid, split_pt, false, sum, c);
       }
     }
-    sum_grad += ::sycl::reduce_over_group(sg, hist_data[i].GetGrad(), std::plus<>());
-    sum_hess += ::sycl::reduce_over_group(sg, hist_data[i].GetHess(), std::plus<>());
+
+    const bool last_iter = i + local_size >= iend;
+    if (!last_iter) {
+      size_t end = i - local_id + local_size;
+      if (end > iend) end = iend;
+      for (size_t j = i + 1; j < end; ++j) {
+        sum += GradStats<GradientSumT>(hist_data[j].GetGrad(), hist_data[j].GetHess());
+      }
+    }
   }
 
   bst_float total_loss_chg = ::sycl::reduce_over_group(sg, best.loss_chg, maximum<>());
@@ -1188,7 +1118,6 @@ GradStats<GradientSumT> QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit
                                                               (1U << 31) - 1U, minimum<>());
   if (best.loss_chg == total_loss_chg &&
       best.SplitIndex() == total_split_index) p_best->Update(best);
-  return GradStats<GradientSumT>(sum_grad, sum_hess);
 }
 
 template <typename GradientSumT>
@@ -1326,9 +1255,9 @@ void QuantileHistMaker::Builder<GradientSumT>::InitNewNode(int nid,
     auto evaluator = tree_evaluator_.GetEvaluator();
     bst_uint parentid = tree[nid].Parent();
     snode_[nid].weight = static_cast<float>(
-        evaluator.CalcWeight(parentid, GradStats<GradientSumT>{snode_[nid].stats}));
+        evaluator.CalcWeight(parentid, snode_[nid].stats));
     snode_[nid].root_gain = static_cast<float>(
-        evaluator.CalcGain(parentid, GradStats<GradientSumT>{snode_[nid].stats}));
+        evaluator.CalcGain(parentid, snode_[nid].stats));
   }
   builder_monitor_.Stop("InitNewNode");
 }

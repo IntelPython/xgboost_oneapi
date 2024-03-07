@@ -57,6 +57,32 @@ struct GradStats {
   GradType GetGrad() const { return sum_grad; }
   GradType GetHess() const { return sum_hess; }
 
+  GradStats<GradType>& operator+= (const GradStats<GradType>& rhs) {
+    sum_grad += rhs.sum_grad;
+    sum_hess += rhs.sum_hess;
+
+    return *this;
+  }
+
+  GradStats<GradType>& operator-= (const GradStats<GradType>& rhs) {
+    sum_grad -= rhs.sum_grad;
+    sum_hess -= rhs.sum_hess;
+
+    return *this;
+  }
+
+  friend GradStats<GradType> operator+ (GradStats<GradType> lhs,
+                                        const GradStats<GradType> rhs) {
+    lhs += rhs;
+    return lhs;
+  }
+
+  friend GradStats<GradType> operator- (GradStats<GradType> lhs,
+                                        const GradStats<GradType> rhs) {
+    lhs -= rhs;
+    return lhs;
+  }
+
 
   friend std::ostream& operator<<(std::ostream& os, GradStats s) {
     os << s.GetGrad() << "/" << s.GetHess();

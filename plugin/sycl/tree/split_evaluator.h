@@ -51,9 +51,6 @@ class TreeEvaluator {
       monotone_.Resize(&qu_, n_features, 0);
       has_constraint_ = false;
     } else {
-      // monotone_ = USMVector<int32_t>(&qu_, p.monotone_constraints);
-      // monotone_.Resize(&qu_, n_features, 0);
-
       monotone_.Resize(&qu_, n_features, 0);
       qu_.memcpy(monotone_.Data(), p.monotone_constraints.data(),
                  sizeof(int32_t) * p.monotone_constraints.size());
@@ -161,10 +158,10 @@ class TreeEvaluator {
 
  public:
   /* Get a view to the evaluator that can be passed down to device. */
-  auto GetEvaluator() {
-    return SplitEvaluator{monotone_.Data(),
-                          lower_bounds_.Data(),
-                          upper_bounds_.Data(),
+  auto GetEvaluator() const {
+    return SplitEvaluator{monotone_.DataConst(),
+                          lower_bounds_.DataConst(),
+                          upper_bounds_.DataConst(),
                           has_constraint_,
                           param_};
   }
@@ -174,28 +171,22 @@ class TreeEvaluator {
     if (!has_constraint_) {
       return;
     }
-    GradType* lower = lower_bounds_.Data();
-    GradType* upper = upper_bounds_.Data();
-    int* monotone = monotone_.Data();
-    qu_.submit([&](::sycl::handler& cgh) {
-      cgh.parallel_for<>(::sycl::range<1>(1), [=](::sycl::item<1> pid) {
-        lower[leftid] = lower[nodeid];
-        upper[leftid] = upper[nodeid];
 
-        lower[rightid] = lower[nodeid];
-        upper[rightid] = upper[nodeid];
-        int32_t c = monotone[f];
-        GradType mid = (left_weight + right_weight) / 2;
+    lower_bounds_[leftid] = lower_bounds_[nodeid];
+    upper_bounds_[leftid] = upper_bounds_[nodeid];
 
-        if (c < 0) {
-          lower[leftid] = mid;
-          upper[rightid] = mid;
-        } else if (c > 0) {
-          upper[leftid] = mid;
-          lower[rightid] = mid;
-        }
-      });
-    }).wait();
+    lower_bounds_[rightid] = lower_bounds_[nodeid];
+    upper_bounds_[rightid] = upper_bounds_[nodeid];
+    int32_t c = monotone_[f];
+    GradType mid = (left_weight + right_weight) / 2;
+
+    if (c < 0) {
+      lower_bounds_[leftid] = mid;
+      upper_bounds_[rightid] = mid;
+    } else if (c > 0) {
+      upper_bounds_[leftid] = mid;
+      lower_bounds_[rightid] = mid;
+    }
   }
 };
 }  // namespace tree

@@ -212,6 +212,8 @@ class QuantileHistMaker: public TreeUpdater {
         snode_(&qu, 1u << (param.max_depth + 1), NodeEntry<GradientSumT>(param)) {
       builder_monitor_.Init("SYCL::Quantile::Builder");
       kernel_monitor_.Init("SYCL::Quantile::Kernels");
+      const auto sub_group_sizes = qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
+      sub_group_size_ = sub_group_sizes.back();
     }
     // update one tree, growing
     void Update(Context const * ctx,
@@ -385,6 +387,7 @@ class QuantileHistMaker: public TreeUpdater {
       }
     }
     //  --data fields--
+    size_t sub_group_size_;
     const xgboost::tree::TrainParam& param_;
     // number of omp thread used during training
     int nthread_;

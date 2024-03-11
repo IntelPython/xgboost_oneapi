@@ -12,6 +12,7 @@
 #include <limits>
 
 #include "param.h"
+#include "../data.h"
 
 #include "xgboost/tree_model.h"
 #include "xgboost/host_device_vector.h"
@@ -39,7 +40,7 @@ class TreeEvaluator {
 
   USMVector<GradType> lower_bounds_;
   USMVector<GradType> upper_bounds_;
-  USMVector<int32_t> monotone_;
+  USMVector<int> monotone_;
   TrainParam param_;
   ::sycl::queue qu_;
   bool has_constraint_;
@@ -47,20 +48,26 @@ class TreeEvaluator {
  public:
   void Reset(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
     qu_ = qu;
-    if (p.monotone_constraints.empty()) {
-      monotone_.Resize(&qu_, n_features, 0);
-      has_constraint_ = false;
-    } else {
+
+    has_constraint_ = false;
+    for (const auto& constraint : p.monotone_constraints) {
+      if (constraint != 0) has_constraint_ = true;
+    }
+
+    if (has_constraint_) {
       monotone_.Resize(&qu_, n_features, 0);
       qu_.memcpy(monotone_.Data(), p.monotone_constraints.data(),
-                 sizeof(int32_t) * p.monotone_constraints.size());
+                 sizeof(int) * p.monotone_constraints.size());
       qu_.wait();
 
-      lower_bounds_.Resize(&qu_, p.MaxNodes(), -std::numeric_limits<GradType>::max());
+      lower_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::lowest());
       upper_bounds_.Resize(&qu_, p.MaxNodes(), std::numeric_limits<GradType>::max());
-      has_constraint_ = true;
     }
     param_ = TrainParam(p);
+  }
+
+  bool HasConstraint() const {
+    return has_constraint_;
   }
 
   TreeEvaluator(::sycl::queue qu, xgboost::tree::TrainParam const& p, bst_feature_t n_features) {
@@ -78,13 +85,17 @@ class TreeEvaluator {
                         bst_feature_t fidx,
                         const GradStats<GradType>& left,
                         const GradStats<GradType>& right) const {
-      int constraint = constraints[fidx];
       const GradType negative_infinity = -std::numeric_limits<GradType>::infinity();
       GradType wleft = this->CalcWeight(nidx, left);
       GradType wright = this->CalcWeight(nidx, right);
 
       GradType gain = this->CalcGainGivenWeight(nidx, left, wleft) +
                     this->CalcGainGivenWeight(nidx, right, wright);
+      if (!has_constraint) {
+        return gain;
+      }
+
+      int constraint = constraints[fidx];
       if (constraint == 0) {
         return gain;
       } else if (constraint > 0) {

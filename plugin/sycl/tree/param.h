@@ -19,6 +19,8 @@
 #include "../src/tree/param.h"
 #pragma GCC diagnostic pop
 
+#include <CL/sycl.hpp>
+
 namespace xgboost {
 namespace sycl {
 namespace tree {

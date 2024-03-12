@@ -104,7 +104,8 @@ struct GradStats {
 
 /*!
  * \brief SYCL implementation of SplitEntryContainer for device compilation.
- *        Original structure cannot be used due to std::isinf usage, which is not supported
+ *        Original structure cannot be used due 'cat_bits' field of type std::vector<uint32_t>,
+ *        which is not device-copyable
  */
 template<typename GradientT>
 struct SplitEntryContainer {

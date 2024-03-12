@@ -89,8 +89,8 @@ class TreeEvaluator {
       GradType wleft = this->CalcWeight(nidx, left);
       GradType wright = this->CalcWeight(nidx, right);
 
-      GradType gain = this->CalcGainGivenWeight(nidx, left, wleft) +
-                    this->CalcGainGivenWeight(nidx, right, wright);
+      GradType gain = this->CalcGainGivenWeight(nidx, left,  wleft) +
+                      this->CalcGainGivenWeight(nidx, right, wright);
       if (!has_constraint) {
         return gain;
       }
@@ -105,7 +105,7 @@ class TreeEvaluator {
       }
     }
 
-    inline GradType ThresholdL1(GradType w, GradType alpha) const {
+    inline static GradType ThresholdL1(GradType w, float alpha) {
       if (w > + alpha) {
         return w - alpha;
       }

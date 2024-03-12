@@ -91,44 +91,14 @@ struct GradStats {
     return os;
   }
 
-
   GradStats() {
   }
-
 
   template <typename GpairT>
   explicit GradStats(const GpairT &sum)
       : sum_grad(sum.GetGrad()), sum_hess(sum.GetHess()) {}
   explicit GradStats(const GradType grad, const GradType hess)
       : sum_grad(grad), sum_hess(hess) {}
-  /*!
-   * \brief accumulate statistics
-   * \param p the gradient pair
-   */
-  inline void Add(GradientPair p) { this->Add(p.GetGrad(), p.GetHess()); }
-
-
-  /*! \brief add statistics to the data */
-  inline void Add(const GradStats& b) {
-    sum_grad += b.sum_grad;
-    sum_hess += b.sum_hess;
-  }
-  /*! \brief same as add, reduce is used in All Reduce */
-  inline static void Reduce(GradStats& a, const GradStats& b) { // NOLINT(*)
-    a.Add(b);
-  }
-  /*! \brief set current value to a - b */
-  inline void SetSubstract(const GradStats& a, const GradStats& b) {
-    sum_grad = a.sum_grad - b.sum_grad;
-    sum_hess = a.sum_hess - b.sum_hess;
-  }
-  /*! \return whether the statistics is not used yet */
-  inline bool Empty() const { return sum_hess == 0.0; }
-  /*! \brief add statistics to the data */
-  inline void Add(GradType grad, GradType hess) {
-    sum_grad += grad;
-    sum_hess += hess;
-  }
 };
 
 

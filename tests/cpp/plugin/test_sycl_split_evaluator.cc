@@ -1,12 +1,8 @@
 /**
- * Copyright 2020-2023 by XGBoost contributors
+ * Copyright 2020-2024 by XGBoost contributors
  */
 #include <gtest/gtest.h>
-
-// #include <string>
-// #include <utility>
 #include <vector>
-// #include <numeric>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"

@@ -1092,9 +1092,8 @@ void QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
    * Maybe calculating of reduce overgroup in seprate kernel and reusing it here can be faster
    */
   for (int32_t i = ibegin + local_id; i < iend; i += sub_group_size) {
-    sum += GradStats<GradientSumT>(
-              ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetGrad(), std::plus<>()),
-              ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetHess(), std::plus<>()));
+    sum.Add(::sycl::inclusive_scan_over_group(sg, hist_data[i].GetGrad(), std::plus<>()),
+            ::sycl::inclusive_scan_over_group(sg, hist_data[i].GetHess(), std::plus<>()));
 
     if (sum.GetHess() >= min_child_weight) {
       GradStats<GradientSumT> c = snode.stats - sum;
@@ -1110,7 +1109,7 @@ void QuantileHistMaker::Builder<GradientSumT>::EnumerateSplit(
       size_t end = i - local_id + sub_group_size;
       if (end > iend) end = iend;
       for (size_t j = i + 1; j < end; ++j) {
-        sum += GradStats<GradientSumT>(hist_data[j].GetGrad(), hist_data[j].GetHess());
+        sum.Add(hist_data[j].GetGrad(), hist_data[j].GetHess());
       }
     }
   }

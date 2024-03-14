@@ -146,8 +146,6 @@ class TreeEvaluator {
       }
     }
 
-    // inline GradType Sqr(GradType a) const { return a * a; }
-
     inline GradType CalcGainGivenWeight(GradType sum_grad, GradType sum_hess, GradType w) const {
       return -(2.0f * sum_grad * w + (sum_hess + param.reg_lambda) * xgboost::common::Sqr(w));
     }

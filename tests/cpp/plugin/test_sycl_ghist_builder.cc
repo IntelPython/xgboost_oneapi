@@ -61,10 +61,12 @@ void GHistBuilderTest(int n_bins, float sparsity) {
   std::vector<GradientSumT> hist_host(2*n_bins);
   GHistRow<GradientSumT, MemoryType::on_device> hist(&qu, 2 * n_bins);
   InitHist(qu, &hist, hist.Size());
+  qu.wait_and_throw();
 
   const size_t nblocks = 2;
   GHistRow<GradientSumT, MemoryType::on_device> hist_buffer(&qu, 2 * nblocks * n_bins);
   InitHist(qu, &hist_buffer, hist_buffer.Size());
+  qu.wait_and_throw();
 
   ::sycl::event event;
   event = builder.BuildHist(gpair_device, row_set_collection[0], gmat_sycl, &hist, true, &hist_buffer, event);

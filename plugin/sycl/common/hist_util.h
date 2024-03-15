@@ -13,6 +13,7 @@
 #include "row_set.h"
 
 #include "../../src/common/hist_util.h"
+#include "../data/gradient_index.h"
 
 #include <CL/sycl.hpp>
 

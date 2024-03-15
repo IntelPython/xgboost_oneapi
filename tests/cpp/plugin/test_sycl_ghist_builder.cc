@@ -17,9 +17,11 @@
 namespace xgboost::sycl::common {
 
 template <typename GradientSumT>
-void GHistBuilderTest(int n_bins, float sparsity) {
+void GHistBuilderTest(float sparsity, bool force_atomic_use) {
   const size_t num_rows = 8;
   const size_t num_columns = 1;
+  const int n_bins = 2;
+  const GradientSumT eps = 1e-6;
 
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
@@ -69,7 +71,8 @@ void GHistBuilderTest(int n_bins, float sparsity) {
   qu.wait_and_throw();
 
   ::sycl::event event;
-  event = builder.BuildHist(gpair_device, row_set_collection[0], gmat_sycl, &hist, true, &hist_buffer, event);
+  event = builder.BuildHist(gpair_device, row_set_collection[0], gmat_sycl, &hist,
+                            sparsity < eps , &hist_buffer, event, force_atomic_use);
   qu.memcpy(hist_host.data(), hist.Data(),
             2 * n_bins * sizeof(GradientSumT), event);
   qu.wait_and_throw();
@@ -86,7 +89,6 @@ void GHistBuilderTest(int n_bins, float sparsity) {
     }
   }
 
-  const GradientSumT eps = 1e-6;
   VerifySyclVector(hist_host, hist_desired, eps);
 }
 
@@ -101,26 +103,23 @@ void GHistSubtractionTest() {
   DeviceManager device_manager;
   auto qu = device_manager.GetQueue(ctx.Device());
 
+  ::sycl::event event;
   std::vector<GradientSumT> hist1_host = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8};
   GHistType hist1(&qu, 2 * n_bins);
-  InitHist(qu, &hist1, hist1.Size());
-  qu.memcpy(hist1.Data(), hist1_host.data(),
-            2 * n_bins * sizeof(GradientSumT));
-  qu.wait();
+  event = qu.memcpy(hist1.Data(), hist1_host.data(),
+                    2 * n_bins * sizeof(GradientSumT), event);
 
   std::vector<GradientSumT> hist2_host = {0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1};
   GHistType hist2(&qu, 2 * n_bins);
-  InitHist(qu, &hist2, hist2.Size());
-  qu.memcpy(hist2.Data(), hist2_host.data(),
-            2 * n_bins * sizeof(GradientSumT));
-  qu.wait();
+  event = qu.memcpy(hist2.Data(), hist2_host.data(),
+            2 * n_bins * sizeof(GradientSumT), event);
 
   std::vector<GradientSumT> hist3_host(2 * n_bins);
   GHistType hist3(&qu, 2 * n_bins);
-  auto event = SubtractionHist(qu, &hist3, hist1, hist2, 2 * n_bins, ::sycl::event());
+  event = SubtractionHist(qu, &hist3, hist1, hist2, n_bins, event);
   qu.memcpy(hist3_host.data(), hist3.Data(),
             2 * n_bins * sizeof(GradientSumT), event);
-  qu.wait();
+  qu.wait_and_throw();
 
   std::vector<GradientSumT> hist3_desired(2 * n_bins);
   for (size_t idx = 0; idx < 2 * n_bins; ++idx) {
@@ -132,27 +131,23 @@ void GHistSubtractionTest() {
 }
 
 TEST(SyclGHistBuilder, ByBlockDenseCase) {
-  // 2-bins. In this case block builder is used
-  GHistBuilderTest<float>(2, 0.0);
-  GHistBuilderTest<double>(2, 0.0);
+  GHistBuilderTest<float>(0.0, false);
+  GHistBuilderTest<double>(0.0, false);
 }
 
 TEST(SyclGHistBuilder, ByBlockSparseCase) {
-  // 2-bins. In this case block builder is used
-  GHistBuilderTest<float>(2, 0.3);
-  GHistBuilderTest<double>(2, 0.3);
+  GHistBuilderTest<float>(0.3, false);
+  GHistBuilderTest<double>(0.3, false);
 }
 
 TEST(SyclGHistBuilder, ByAtomicDenseCase) {
-  // 16-bins. In this case block builder is used
-  GHistBuilderTest<float>(16, 0.0);
-  GHistBuilderTest<double>(16, 0.0);
+  GHistBuilderTest<float>(0.0, true);
+  GHistBuilderTest<double>(0.0, true);
 }
 
 TEST(SyclGHistBuilder, ByAtomicSparseCase) {
-  // 16-bins. In this case block builder is used
-  GHistBuilderTest<float>(16, 0.3);
-  GHistBuilderTest<double>(16, 0.3);
+  GHistBuilderTest<float>(0.3, true);
+  GHistBuilderTest<double>(0.3, true);
 }
 
 TEST(SyclGHistBuilder, Subtraction) {

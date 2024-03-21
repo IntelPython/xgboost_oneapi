@@ -44,7 +44,8 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
 template<typename GradientSumT>
 void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>* hist,
               size_t size, ::sycl::event* event) {
-  *event = qu.fill(hist->Begin(), xgboost::detail::GradientPairInternal<GradientSumT>(), size, *event);
+  *event = qu.fill(hist->Begin(),
+                   xgboost::detail::GradientPairInternal<GradientSumT>(), size, *event);
 }
 template void InitHist(::sycl::queue qu,
                        GHistRow<float,  MemoryType::on_device>* hist,

@@ -62,15 +62,14 @@ void GHistBuilderTest(float sparsity, bool force_atomic_use) {
 
   std::vector<GradientSumT> hist_host(2*n_bins);
   GHistRow<GradientSumT, MemoryType::on_device> hist(&qu, 2 * n_bins);
-  InitHist(qu, &hist, hist.Size());
-  qu.wait_and_throw();
+  ::sycl::event event;
 
   const size_t nblocks = 2;
   GHistRow<GradientSumT, MemoryType::on_device> hist_buffer(&qu, 2 * nblocks * n_bins);
-  InitHist(qu, &hist_buffer, hist_buffer.Size());
-  qu.wait_and_throw();
 
-  ::sycl::event event;
+  InitHist(qu, &hist, hist.Size(), &event);
+  InitHist(qu, &hist_buffer, hist_buffer.Size(), &event);
+
   event = builder.BuildHist(gpair_device, row_set_collection[0], gmat_sycl, &hist,
                             sparsity < eps , &hist_buffer, event, force_atomic_use);
   qu.memcpy(hist_host.data(), hist.Data(),

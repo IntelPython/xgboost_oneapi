@@ -42,13 +42,16 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
  * \brief Fill histogram with zeroes
  */
 template<typename GradientSumT>
-void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>* hist, size_t size) {
-  qu.fill(hist->Begin(), xgboost::detail::GradientPairInternal<GradientSumT>(), size);
+void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>* hist,
+              size_t size, ::sycl::event* event) {
+  *event = qu.fill(hist->Begin(), xgboost::detail::GradientPairInternal<GradientSumT>(), size, *event);
 }
 template void InitHist(::sycl::queue qu,
-                       GHistRow<float,  MemoryType::on_device>* hist, size_t size);
+                       GHistRow<float,  MemoryType::on_device>* hist,
+                       size_t size, ::sycl::event* event);
 template void InitHist(::sycl::queue qu,
-                       GHistRow<double, MemoryType::on_device>* hist, size_t size);
+                       GHistRow<double, MemoryType::on_device>* hist,
+                       size_t size, ::sycl::event* event);
 
 /*!
  * \brief Copy histogram from src to dst
@@ -129,9 +132,9 @@ template<typename FPType, typename BinIdxType, bool isDense>
   FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local =
+  const size_t max_work_group_size =
     qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
-  const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
+  const size_t work_group_size = n_columns < max_work_group_size ? n_columns : max_work_group_size;
 
   const size_t max_nblocks = hist_buffer->Size() / (nbins * 2);
   const size_t min_block_size = 128;
@@ -142,8 +145,8 @@ template<typename FPType, typename BinIdxType, bool isDense>
   auto event_fill = qu.fill(hist_buffer_data, FPType(0), nblocks * nbins * 2, event_priv);
   auto event_main = qu.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
-    cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, feat_local),
-                                           ::sycl::range<2>(1, feat_local)),
+    cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, work_group_size),
+                                           ::sycl::range<2>(1, work_group_size)),
                        [=](::sycl::nd_item<2> pid) {
       size_t block = pid.get_global_id(0);
       size_t feat = pid.get_global_id(1);
@@ -158,7 +161,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
           pid.barrier(::sycl::access::fence_space::local_space);
           const BinIdxType* gr_index_local = gradient_index + icol_start;
 
-          for (size_t j = feat; j < n_columns; j += feat_local) {
+          for (size_t j = feat; j < n_columns; j += work_group_size) {
             uint32_t idx_bin = static_cast<uint32_t>(gr_index_local[j]);
             if constexpr (isDense) {
               idx_bin += offsets[j];
@@ -211,9 +214,9 @@ template<typename FPType, typename BinIdxType, bool isDense>
   FPType* hist_data = reinterpret_cast<FPType*>(hist->Data());
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local =
+  const size_t max_work_group_size =
     qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
-  const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
+  const size_t feat_local = n_columns < max_work_group_size ? n_columns : max_work_group_size;
 
   auto event_fill = qu.fill(hist_data, FPType(0), nbins * 2, event_priv);
   auto event_main = qu.submit([&](::sycl::handler& cgh) {
@@ -260,15 +263,15 @@ template<typename FPType, typename BinIdxType>
   const size_t n_columns = isDense ? gmat.nfeatures : gmat.row_stride;
   const size_t nbins = gmat.nbins;
 
-  const size_t max_feat_local =
-    qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
-  const size_t feat_local = n_columns < max_feat_local ? n_columns : max_feat_local;
-
   // max cycle size, while atomics are still effective
   const size_t max_cycle_size_atomics = nbins;
   const size_t cycle_size = size;
-  bool use_atomic = force_atomic_use || (cycle_size <= max_cycle_size_atomics);
 
+  // TODO(razdoburdin): replace the add-hock dispatching criteria by more sutable one
+  bool use_atomic = (size < nbins) || (gmat.max_num_bins == gmat.nbins / n_columns);
+
+  // force_atomic_use flag is used only for testing
+  use_atomic = use_atomic || force_atomic_use;
   if (!use_atomic) {
     if (isDense) {
       return BuildHistKernel<FPType, BinIdxType, true>(qu, gpair_device, row_indices,

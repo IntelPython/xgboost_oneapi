@@ -34,7 +34,7 @@ class ColumnMatrix;
 template<typename GradientSumT>
 void InitHist(::sycl::queue qu,
               GHistRow<GradientSumT, MemoryType::on_device>* hist,
-              size_t size);
+              size_t size, ::sycl::event* event);
 
 /*!
  * \brief Copy histogram from src to dst
@@ -165,7 +165,7 @@ class GHistBuilder {
                           GHistRowT<MemoryType::on_device>* HistCollection,
                           bool isDense,
                           GHistRowT<MemoryType::on_device>* hist_buffer,
-                          ::sycl::event evens,
+                          ::sycl::event event,
                           bool force_atomic_use = false);
 
   // Construct a histogram via subtraction trick

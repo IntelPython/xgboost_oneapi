@@ -324,7 +324,6 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildHistogramsLossGuide(
   }
 
   std::vector<int> sync_ids;
-
   hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
   BuildLocalHistograms(gmat, p_tree, gpair_device);
   hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
@@ -341,19 +340,18 @@ void QuantileHistMaker::Builder<GradientSumT>::BuildLocalHistograms(
     event = ::sycl::event();
   }
 
-  const size_t event_idx = 0;
   for (size_t i = 0; i < n_nodes; i++) {
     const int32_t nid = nodes_for_explicit_hist_build_[i].nid;
 
+    const size_t event_idx = i % kNumParallelBuffers;
+    auto& event = hist_build_events_[event_idx];
     if (row_set_collection_[nid].Size() > 0) {
-      const size_t event_idx = (event_idx + 1) % kNumParallelBuffers;
-      auto& event = hist_build_events_[event_idx];
       auto& hist_buff = hist_buffers_[event_idx];
 
       event = BuildHist(gpair_device, row_set_collection_[nid], gmat, &(hist_[nid]),
                         &(hist_buff.GetDeviceBuffer()), event);
     } else {
-      common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size());
+      common::InitHist(qu_, &(hist_[nid]), hist_[nid].Size(), &event);
     }
   }
   qu_.wait_and_throw();
@@ -833,11 +831,11 @@ void QuantileHistMaker::Builder<GradientSumT>::InitData(
     for (auto& buffer : hist_buffers_) {
       buffer.Init(qu_, nbins);
       size_t buffer_size = 2048;
-      if (buffer_size > info.num_row_ / 128 + 1) {
-        buffer_size = info.num_row_ / 128 + 1;
+      const size_t min_block_size = 128;
+      if (buffer_size > info.num_row_ / min_block_size + 1) {
+        buffer_size = info.num_row_ / min_block_size + 1;
       }
       buffer.Reset(buffer_size);
-      // buffer.Reset(2048);
     }
 
     // initialize histogram builder

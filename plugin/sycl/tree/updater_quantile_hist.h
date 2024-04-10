@@ -123,7 +123,7 @@ struct NodeEntry {
 class QuantileHistMaker: public TreeUpdater {
  public:
   QuantileHistMaker(Context const* ctx, ObjInfo const * task) :
-                             TreeUpdater(ctx), ctx_(ctx), task_{task} {
+                             TreeUpdater(ctx), task_{task} {
     updater_monitor_.Init("SYCLQuantileHistMaker");
   }
   void Configure(const Args& args) override;
@@ -467,7 +467,6 @@ class QuantileHistMaker: public TreeUpdater {
 
   ::sycl::queue qu_;
   DeviceManager device_manager;
-  Context const* ctx_;
   ObjInfo const *task_{nullptr};
 };
 

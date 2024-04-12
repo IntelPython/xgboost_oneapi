@@ -16,9 +16,9 @@ if (USE_CUDA)
   target_sources(objxgboost PRIVATE ${CUDA_SOURCES})
 endif (USE_CUDA)
 
-if (PLUGIN_SYCL)
+if(PLUGIN_SYCL)
   target_compile_definitions(objxgboost PRIVATE -DXGBOOST_USE_SYCL=1)
-endif (PLUGIN_SYCL)
+endif(PLUGIN_SYCL)
 
 target_include_directories(objxgboost
   PRIVATE

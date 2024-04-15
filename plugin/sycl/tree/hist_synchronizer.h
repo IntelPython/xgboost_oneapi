@@ -5,6 +5,8 @@
 #ifndef PLUGIN_SYCL_TREE_HIST_SYNCHRONIZER_H_
 #define PLUGIN_SYCL_TREE_HIST_SYNCHRONIZER_H_
 
+#include <vector>
+
 #include "../common/hist_util.h"
 #include "expand_entry.h"
 

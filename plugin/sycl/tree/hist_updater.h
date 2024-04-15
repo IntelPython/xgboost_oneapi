@@ -11,6 +11,11 @@
 #include <xgboost/tree_updater.h>
 #pragma GCC diagnostic pop
 
+#include <utility>
+#include <queue>
+#include <vector>
+#include <memory>
+
 #include "../common/row_set.h"
 #include "../common/partition_builder.h"
 #include "param.h"
@@ -157,7 +162,8 @@ class HistUpdater {
 
 
   void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                            const common::GHistIndexMatrix& gmat, std::vector<int32_t>* split_conditions);
+                           const common::GHistIndexMatrix& gmat,
+                           std::vector<int32_t>* split_conditions);
 
   void InitNewNode(int nid,
                     const common::GHistIndexMatrix& gmat,

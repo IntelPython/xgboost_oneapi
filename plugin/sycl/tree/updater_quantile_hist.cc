@@ -7,16 +7,10 @@
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #pragma GCC diagnostic ignored "-W#pragma-messages"
 #include <rabit/rabit.h>
+#include <xgboost/tree_updater.h>
+#pragma GCC diagnostic pop
 
 #include <utility>
-#include <algorithm>
-#include <memory>
-#include <functional>
-#include <limits>
-#include <vector>
-
-#include "xgboost/tree_updater.h"
-#pragma GCC diagnostic pop
 
 #include "xgboost/logging.h"
 

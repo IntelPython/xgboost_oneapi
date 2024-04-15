@@ -9,19 +9,12 @@
 #include <rabit/rabit.h>
 #include <xgboost/tree_updater.h>
 
-#include <queue>
-#include <utility>
 #include <memory>
 #include <vector>
 
-#include "../data/gradient_index.h"
-#include "../common/hist_util.h"
-#include "../common/partition_builder.h"
-#include "split_evaluator.h"
 #include "hist_updater.h"
 #include "../device_manager.h"
 
-#include "xgboost/data.h"
 #include "xgboost/json.h"
 #include "../../src/tree/constraints.h"
 #include "../../src/common/random.h"
@@ -29,29 +22,6 @@
 namespace xgboost {
 namespace sycl {
 namespace tree {
-
-using xgboost::sycl::common::HistCollection;
-using xgboost::sycl::common::GHistBuilder;
-using xgboost::sycl::common::GHistIndexMatrix;
-using xgboost::sycl::common::PartitionBuilder;
-
-template <typename GradientSumT>
-class HistSynchronizer;
-
-template <typename GradientSumT>
-class BatchHistSynchronizer;
-
-template <typename GradientSumT>
-class DistributedHistSynchronizer;
-
-template <typename GradientSumT>
-class HistRowsAdder;
-
-template <typename GradientSumT>
-class BatchHistRowsAdder;
-
-template <typename GradientSumT>
-class DistributedHistRowsAdder;
 
 // training parameters specific to this algorithm
 struct HistMakerTrainParam
@@ -117,7 +87,7 @@ class QuantileHistMaker: public TreeUpdater {
   // training parameter
   xgboost::tree::TrainParam param_;
   // quantized data matrix
-  GHistIndexMatrix gmat_;
+  common::GHistIndexMatrix gmat_;
   // (optional) data matrix with feature grouping
   // column accessor
   DMatrix const* p_last_dmat_ {nullptr};

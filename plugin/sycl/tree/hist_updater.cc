@@ -3,6 +3,12 @@
  * \file hist_updater.cc
  */
 
+#include <algorithm>
+#include <memory>
+#include <functional>
+#include <limits>
+#include <vector>
+
 #include "hist_updater.h"
 #include "../common/hist_util.h"
 #include "../../../src/common/threading_utils.h"             // MemStackAllocator

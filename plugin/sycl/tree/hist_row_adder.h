@@ -5,6 +5,9 @@
 #ifndef PLUGIN_SYCL_TREE_HIST_ROW_ADDER_H_
 #define PLUGIN_SYCL_TREE_HIST_ROW_ADDER_H_
 
+#include <vector>
+#include <algorithm>
+
 namespace xgboost {
 namespace sycl {
 namespace tree {
@@ -12,15 +15,16 @@ namespace tree {
 template <typename GradientSumT>
 class HistRowsAdder {
  public:
-
-  virtual void AddHistRows(HistUpdater<GradientSumT>* builder, std::vector<int>* sync_ids, RegTree *p_tree) = 0;
+  virtual void AddHistRows(HistUpdater<GradientSumT>* builder,
+                           std::vector<int>* sync_ids, RegTree *p_tree) = 0;
   virtual ~HistRowsAdder() = default;
 };
 
 template <typename GradientSumT>
 class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
  public:
-  void AddHistRows(HistUpdater<GradientSumT>* builder, std::vector<int>* sync_ids, RegTree *p_tree) override {
+  void AddHistRows(HistUpdater<GradientSumT>* builder,
+                   std::vector<int>* sync_ids, RegTree *p_tree) override {
     builder->builder_monitor_.Start("AddHistRows");
 
     int max_nid = 0;
@@ -48,7 +52,8 @@ class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
 template <typename GradientSumT>
 class DistributedHistRowsAdder: public HistRowsAdder<GradientSumT> {
  public:
-  void AddHistRows(HistUpdater<GradientSumT>* builder, std::vector<int>* sync_ids, RegTree *p_tree) override {
+  void AddHistRows(HistUpdater<GradientSumT>* builder,
+                   std::vector<int>* sync_ids, RegTree *p_tree) override {
     builder->builder_monitor_.Start("AddHistRows");
     const size_t explicit_size = builder->nodes_for_explicit_hist_build_.size();
     const size_t subtaction_size = builder->nodes_for_subtraction_trick_.size();

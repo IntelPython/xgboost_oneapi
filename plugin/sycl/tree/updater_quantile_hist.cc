@@ -12,10 +12,7 @@
 
 #include <utility>
 
-#include "xgboost/logging.h"
-
 #include "updater_quantile_hist.h"
-#include "../data.h"
 
 namespace xgboost {
 namespace sycl {
@@ -64,9 +61,12 @@ void QuantileHistMaker::CallUpdate(
         xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
         const std::vector<RegTree *> &trees) {
   const std::vector<GradientPair>& gpair_h = gpair->ConstHostVector();
-  USMVector<GradientPair, MemoryType::on_device> gpair_device(&qu_, gpair_h);
+  gpair_device_.Resize(&qu_, gpair_h.size());
+  qu_.memcpy(gpair_device_.Data(), gpair_h.data(), gpair_h.size() * sizeof(GradientPair));
+  qu_.wait();
+
   for (auto tree : trees) {
-    pimpl->Update(ctx_, param, gmat_, gpair, gpair_device, dmat, out_position, tree);
+    pimpl->Update(ctx_, param, gmat_, gpair, gpair_device_, dmat, out_position, tree);
   }
 }
 

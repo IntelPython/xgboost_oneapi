@@ -380,16 +380,27 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
   CHECK_GT(out_preds.Size(), 0U);
 
   const size_t stride = out_preds.Stride(0);
-  const int buffer_size = out_preds.Size()*stride - stride + 1;
+  const bool is_first_group = (out_pred_ptr == nullptr);
+  const size_t gid = out_pred_ptr == nullptr ? 0 : &out_preds(0) - out_pred_ptr;
+  const bool is_last_group = (gid + 1 == stride);
+
+  const int buffer_size = out_preds.Size() *stride;
   if (buffer_size == 0) return true;
-  ::sycl::buffer<float, 1> out_preds_buf(&out_preds(0), buffer_size);
+
+  ::sycl::event event;
+  if (is_first_group) {
+    out_preds_buf_.ResizeNoCopy(&qu_, buffer_size);
+    out_pred_ptr = &out_preds(0);
+    event = qu_.memcpy(out_preds_buf_.Data(), out_pred_ptr, buffer_size * sizeof(bst_float), event);
+  }
+  auto* out_preds_buf_ptr = out_preds_buf_.Data();
 
   size_t n_nodes = row_set_collection_.Size();
+  std::vector<::sycl::event> events(n_nodes);
   for (size_t node = 0; node < n_nodes; node++) {
     const common::RowSetCollection::Elem& rowset = row_set_collection_[node];
     if (rowset.begin != nullptr && rowset.end != nullptr && rowset.Size() != 0) {
       int nid = rowset.node_id;
-      bst_float leaf_value;
       // if a node is marked as deleted by the pruner, traverse upward to locate
       // a non-deleted leaf.
       if ((*p_last_tree_)[nid].IsDeleted()) {
@@ -398,19 +409,23 @@ bool HistUpdater<GradientSumT>::UpdatePredictionCache(
         }
         CHECK((*p_last_tree_)[nid].IsLeaf());
       }
-      leaf_value = (*p_last_tree_)[nid].LeafValue();
-
+      bst_float leaf_value = (*p_last_tree_)[nid].LeafValue();
       const size_t* rid = rowset.begin;
       const size_t num_rows = rowset.Size();
 
-      qu_.submit([&](::sycl::handler& cgh) {
-        auto out_predictions = out_preds_buf.get_access<::sycl::access::mode::read_write>(cgh);
+      events[node] = qu_.submit([&](::sycl::handler& cgh) {
+        cgh.depends_on(event);
         cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::item<1> pid) {
-          out_predictions[rid[pid.get_id(0)]*stride] += leaf_value;
+          out_preds_buf_ptr[rid[pid.get_id(0)]*stride + gid] += leaf_value;
         });
-      }).wait();
+      });
     }
   }
+  if (is_last_group) {
+    qu_.memcpy(out_pred_ptr, out_preds_buf_ptr, buffer_size * sizeof(bst_float), events);
+    out_pred_ptr = nullptr;
+  }
+  qu_.wait();
 
   builder_monitor_.Stop("UpdatePredictionCache");
   return true;

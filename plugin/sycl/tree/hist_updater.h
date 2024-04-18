@@ -295,6 +295,9 @@ class HistUpdater {
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;
 
+  USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
+  bst_float* out_pred_ptr = nullptr;
+
   ::sycl::queue qu_;
 };
 

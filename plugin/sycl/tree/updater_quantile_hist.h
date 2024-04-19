@@ -93,8 +93,11 @@ class QuantileHistMaker: public TreeUpdater {
                   const std::vector<RegTree *> &trees);
 
  protected:
-  std::unique_ptr<HistUpdater<float>> pimpl_single;
-  std::unique_ptr<HistUpdater<double>> pimpl_double;
+  enum class HistPrecision {fp32, fp64};
+  HistPrecision hist_precision_;
+
+  std::unique_ptr<HistUpdater<float>> pimpl_fp32;
+  std::unique_ptr<HistUpdater<double>> pimpl_fp64;
 
   std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost int_constraint_;

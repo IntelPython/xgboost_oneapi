@@ -100,7 +100,7 @@ void QuantileHistMaker::Update(xgboost::tree::TrainParam const *param,
   param_.learning_rate = lr / trees.size();
   int_constraint_.Configure(param_, dmat->Info().num_col_);
   // build tree
-  if (hist_precision_ == HistPricision::fp32) {
+  if (hist_precision_ == HistPrecision::fp32) {
     if (!pimpl_fp32) {
       SetPimpl(&pimpl_fp32, dmat);
     }
@@ -121,7 +121,7 @@ bool QuantileHistMaker::UpdatePredictionCache(const DMatrix* data,
                                               linalg::MatrixView<float> out_preds) {
   if (param_.subsample < 1.0f) return false;
 
-  if (hist_precision_ == HistPricision::fp32) {
+  if (hist_precision_ == HistPrecision::fp32) {
     if (pimpl_fp32) {
       return pimpl_fp32->UpdatePredictionCache(data, out_preds);
     } else {

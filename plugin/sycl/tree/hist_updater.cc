@@ -2,6 +2,9 @@
  * Copyright 2017-2024 by Contributors
  * \file hist_updater.cc
  */
+#include "hist_updater.h"
+
+#include <oneapi/dpl/random>
 
 #include <algorithm>
 #include <memory>
@@ -9,9 +12,6 @@
 #include <limits>
 #include <vector>
 
-#include <oneapi/dpl/random>
-
-#include "hist_updater.h"
 #include "../common/hist_util.h"
 #include "../../../src/common/threading_utils.h"             // MemStackAllocator
 

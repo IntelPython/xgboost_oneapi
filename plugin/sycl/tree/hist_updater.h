@@ -106,8 +106,7 @@ class HistUpdater {
   // initialize temp data structure
   void InitData(Context const * ctx,
                 const common::GHistIndexMatrix& gmat,
-                const std::vector<GradientPair>& gpair,
-                const USMVector<GradientPair, MemoryType::on_device> &gpair_device,
+                const USMVector<GradientPair, MemoryType::on_device> &gpair,
                 const DMatrix& fmat,
                 const RegTree& tree);
 
@@ -125,9 +124,8 @@ class HistUpdater {
     const GradientPairT* hist;
   };
 
-  void InitSampling(const std::vector<GradientPair>& gpair,
-                    const USMVector<GradientPair, MemoryType::on_device> &gpair_device,
-                    const DMatrix& fmat, USMVector<size_t, MemoryType::on_device>* row_indices);
+  void InitSampling(const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                    USMVector<size_t, MemoryType::on_device>* row_indices);
 
   void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                       const common::GHistIndexMatrix& gmat,
@@ -243,8 +241,6 @@ class HistUpdater {
   //  --data fields--
   size_t sub_group_size_;
   const xgboost::tree::TrainParam& param_;
-  // number of omp thread used during training
-  int nthread_;
   xgboost::common::ColumnSampler column_sampler_;
   // the internal row sets
   common::RowSetCollection row_set_collection_;
@@ -264,6 +260,8 @@ class HistUpdater {
   common::GHistBuilder<GradientSumT> hist_builder_;
   std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
+
+  uint64_t seed_ = 0;
 
   common::PartitionBuilder partition_builder_;
 
@@ -288,9 +286,11 @@ class HistUpdater {
 
   xgboost::common::Monitor builder_monitor_;
   xgboost::common::Monitor kernel_monitor_;
-  constexpr static size_t kNumParallelBuffers = 1;
-  std::array<common::ParallelGHistBuilder<GradientSumT>, kNumParallelBuffers> hist_buffers_;
-  std::array<::sycl::event, kNumParallelBuffers> hist_build_events_;
+
+  common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
+
+  std::vector<std::mt19937> rnds;
+
   std::vector<::sycl::event> merge_to_array_events_;
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;

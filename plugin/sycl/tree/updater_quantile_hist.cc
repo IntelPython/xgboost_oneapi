@@ -36,7 +36,7 @@ void QuantileHistMaker::Configure(const Args& args) {
 
   bool has_fp64_support = qu_.get_device().has(::sycl::aspect::fp64);
   if (hist_maker_param_.single_precision_histogram || !has_fp64_support) {
-    if (hist_maker_param_.single_precision_histogram) {
+    if (!hist_maker_param_.single_precision_histogram) {
       LOG(WARNING) << "Target device doesn't support fp64, using single_precision_histogram=True";
     }
     hist_precision_ = HistPrecision::fp32;

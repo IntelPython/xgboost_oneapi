@@ -4,17 +4,11 @@
 #include <gtest/gtest.h>
 
 #include <oneapi/dpl/random>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
-#pragma GCC diagnostic ignored "-W#pragma-messages"
-#include <xgboost/json.h>
-#pragma GCC diagnostic pop
 
 #include "../../../plugin/sycl/tree/hist_updater.h"
 #include "../../../plugin/sycl/device_manager.h"
 
 #include "../helpers.h"
-#include "sycl_helpers.h"
 
 namespace xgboost::sycl::tree {
 

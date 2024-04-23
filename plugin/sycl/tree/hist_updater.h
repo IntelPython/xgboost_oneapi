@@ -289,8 +289,6 @@ class HistUpdater {
 
   common::ParallelGHistBuilder<GradientSumT> hist_buffer_;
 
-  std::vector<std::mt19937> rnds;
-
   std::vector<::sycl::event> merge_to_array_events_;
   std::unique_ptr<HistSynchronizer<GradientSumT>> hist_synchronizer_;
   std::unique_ptr<HistRowsAdder<GradientSumT>> hist_rows_adder_;

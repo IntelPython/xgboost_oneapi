@@ -143,8 +143,6 @@ class USMVector {
     if (size_new <= capacity_) {
       size_ = size_new;
     } else {
-      size_t size_old = size_;
-      auto data_old = data_;
       size_ = size_new;
       capacity_ = size_new;
       data_ = allocate_memory_(qu, size_);

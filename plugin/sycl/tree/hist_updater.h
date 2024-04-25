@@ -61,10 +61,12 @@ class HistUpdater {
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
-      p_last_tree_(nullptr), p_last_fmat_(fmat),
-      snode_(&qu, 1u << (param.max_depth + 1), NodeEntry<GradientSumT>(param)) {
+      p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
     kernel_monitor_.Init("SYCL::Quantile::HistUpdater");
+    if (param.max_depth > 0) {
+      snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
+    }
     const auto sub_group_sizes =
       qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
@@ -247,7 +249,8 @@ class HistUpdater {
   std::vector<SplitQuery> split_queries_host_;
   USMVector<SplitQuery, MemoryType::on_device> split_queries_device_;
   /*! \brief TreeNode Data: statistics for each constructed node */
-  USMVector<NodeEntry<GradientSumT>> snode_;
+  std::vector<NodeEntry<GradientSumT>> snode_host_;
+  USMVector<NodeEntry<GradientSumT>, MemoryType::on_device> snode_device_;
   /*! \brief culmulative histogram of gradients. */
   common::HistCollection<GradientSumT, MemoryType::on_device> hist_;
   /*! \brief culmulative local parent histogram of gradients. */

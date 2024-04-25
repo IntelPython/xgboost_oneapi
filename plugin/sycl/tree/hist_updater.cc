@@ -113,10 +113,10 @@ void HistUpdater<GradientSumT>::BuildNodeStats(
       // it's a right child
       auto parent_id = (*p_tree)[nid].Parent();
       auto left_sibling_id = (*p_tree)[parent_id].LeftChild();
-      auto parent_split_feature_id = snode_[parent_id].best.SplitIndex();
+      auto parent_split_feature_id = snode_host_[parent_id].best.SplitIndex();
       tree_evaluator_.AddSplit(
           parent_id, left_sibling_id, nid, parent_split_feature_id,
-          snode_[left_sibling_id].weight, snode_[nid].weight);
+          snode_host_[left_sibling_id].weight, snode_host_[nid].weight);
       interaction_constraints_.Split(parent_id, parent_split_feature_id,
                                      left_sibling_id, nid);
     }
@@ -138,14 +138,14 @@ void HistUpdater<GradientSumT>::AddSplitsToTree(
     const auto lr = param_.learning_rate;
     int nid = entry.nid;
 
-    if (snode_[nid].best.loss_chg < kRtEps ||
+    if (snode_host_[nid].best.loss_chg < kRtEps ||
         (param_.max_depth > 0 && depth == param_.max_depth) ||
         (param_.max_leaves > 0 && (*num_leaves) == param_.max_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * lr);
+      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
     } else {
       nodes_for_apply_split->push_back(entry);
 
-      NodeEntry<GradientSumT>& e = snode_[nid];
+      NodeEntry<GradientSumT>& e = snode_host_[nid];
       bst_float left_leaf_weight =
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
       bst_float right_leaf_weight =
@@ -273,7 +273,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
   this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair, *p_fmat, *p_tree);
 
   this->EvaluateSplits({node}, gmat, hist_, *p_tree);
-  node.split.loss_chg = snode_[ExpandEntry::kRootNid].best.loss_chg;
+  node.split.loss_chg = snode_host_[ExpandEntry::kRootNid].best.loss_chg;
 
   qexpand_loss_guided_->push(node);
   ++num_leaves;
@@ -283,10 +283,10 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
     const int nid = candidate.nid;
     qexpand_loss_guided_->pop();
     if (!candidate.IsValid(param_, num_leaves)) {
-      (*p_tree)[nid].SetLeaf(snode_[nid].weight * lr);
+      (*p_tree)[nid].SetLeaf(snode_host_[nid].weight * lr);
     } else {
       auto evaluator = tree_evaluator_.GetEvaluator();
-      NodeEntry<GradientSumT>& e = snode_[nid];
+      NodeEntry<GradientSumT>& e = snode_host_[nid];
       bst_float left_leaf_weight =
           evaluator.CalcWeight(nid, GradStats<GradientSumT>{e.best.left_sum}) * lr;
       bst_float right_leaf_weight =
@@ -312,14 +312,14 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
 
       this->InitNewNode(cleft, gmat, gpair, *p_fmat, *p_tree);
       this->InitNewNode(cright, gmat, gpair, *p_fmat, *p_tree);
-      bst_uint featureid = snode_[nid].best.SplitIndex();
+      bst_uint featureid = snode_host_[nid].best.SplitIndex();
       tree_evaluator_.AddSplit(nid, cleft, cright, featureid,
-                               snode_[cleft].weight, snode_[cright].weight);
+                               snode_host_[cleft].weight, snode_host_[cright].weight);
       interaction_constraints_.Split(nid, featureid, cleft, cright);
 
       this->EvaluateSplits({left_node, right_node}, gmat, hist_, *p_tree);
-      left_node.split.loss_chg = snode_[cleft].best.loss_chg;
-      right_node.split.loss_chg = snode_[cright].best.loss_chg;
+      left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
+      right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
 
       qexpand_loss_guided_->push(left_node);
       qexpand_loss_guided_->push(right_node);
@@ -354,9 +354,9 @@ void HistUpdater<GradientSumT>::Update(
   }
 
   for (int nid = 0; nid < p_tree->NumNodes(); ++nid) {
-    p_tree->Stat(nid).loss_chg = snode_[nid].best.loss_chg;
-    p_tree->Stat(nid).base_weight = snode_[nid].weight;
-    p_tree->Stat(nid).sum_hess = static_cast<float>(snode_[nid].stats.GetHess());
+    p_tree->Stat(nid).loss_chg = snode_host_[nid].best.loss_chg;
+    p_tree->Stat(nid).base_weight = snode_host_[nid].weight;
+    p_tree->Stat(nid).sum_hess = static_cast<float>(snode_host_[nid].stats.GetHess());
   }
   pruner_->Update(param, gpair, p_fmat, out_position, std::vector<RegTree*>{p_tree});
 
@@ -599,8 +599,8 @@ void HistUpdater<GradientSumT>::InitData(
     CHECK_GT(min_nbins_per_feature, 0U);
   }
   {
-    snode_.Fill(&qu_, NodeEntry<GradientSumT>(param_));
     qu_.wait_and_throw();
+    std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
   }
   {
     if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
@@ -665,7 +665,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
         split_queries_host_[pos].nid = nid;
         split_queries_host_[pos].fid = fid;
         split_queries_host_[pos].hist = hist[nid].DataConst();
-        split_queries_host_[pos].best = snode_[nid].best;
+        split_queries_host_[pos].best = snode_host_[nid].best;
         pos++;
       }
     }
@@ -680,7 +680,11 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   const uint32_t* cut_ptr = gmat.cut_device.Ptrs().DataConst();
   const bst_float* cut_val = gmat.cut_device.Values().DataConst();
   const bst_float* cut_minval = gmat.cut_device.MinValues().DataConst();
-  const NodeEntry<GradientSumT>* snode = snode_.DataConst();
+
+  snode_device_.ResizeNoCopy(&qu_, snode_host_.size());
+  event = qu_.memcpy(snode_device_.Data(), snode_host_.data(),
+                     snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
+  const NodeEntry<GradientSumT>* snode = snode_device_.DataConst();
 
   const float min_child_weight = param_.min_child_weight;
 
@@ -705,7 +709,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   qu_.wait();
   for (size_t i = 0; i < total_features; i++) {
     int nid = split_queries_host_[i].nid;
-    snode_[nid].best.Update(split_queries_host_[i].best);
+    snode_host_[nid].best.Update(split_queries_host_[i].best);
   }
 
   builder_monitor_.Stop("EvaluateSplits");
@@ -856,10 +860,8 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const DMatrix& fmat,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");
-  {
-    snode_.Resize(&qu_, tree.NumNodes(), NodeEntry<GradientSumT>(param_));
-  }
 
+  snode_host_.resize(tree.NumNodes(), NodeEntry<GradientSumT>(param_));
   {
     auto& hist = hist_[nid];
     GradientPairT grad_stat;
@@ -887,13 +889,13 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
       }
       collective::Allreduce<collective::Operation::kSum>(
           reinterpret_cast<GradientSumT*>(&grad_stat), 2);
-      snode_[nid].stats = GradStats<GradientSumT>(grad_stat.GetGrad(), grad_stat.GetHess());
+      snode_host_[nid].stats = GradStats<GradientSumT>(grad_stat.GetGrad(), grad_stat.GetHess());
     } else {
       int parent_id = tree[nid].Parent();
       if (tree[nid].IsLeftChild()) {
-        snode_[nid].stats = snode_[parent_id].best.left_sum;
+        snode_host_[nid].stats = snode_host_[parent_id].best.left_sum;
       } else {
-        snode_[nid].stats = snode_[parent_id].best.right_sum;
+        snode_host_[nid].stats = snode_host_[parent_id].best.right_sum;
       }
     }
   }
@@ -902,10 +904,10 @@ void HistUpdater<GradientSumT>::InitNewNode(int nid,
   {
     auto evaluator = tree_evaluator_.GetEvaluator();
     bst_uint parentid = tree[nid].Parent();
-    snode_[nid].weight = static_cast<float>(
-        evaluator.CalcWeight(parentid, snode_[nid].stats));
-    snode_[nid].root_gain = static_cast<float>(
-        evaluator.CalcGain(parentid, snode_[nid].stats));
+    snode_host_[nid].weight = static_cast<float>(
+        evaluator.CalcWeight(parentid, snode_host_[nid].stats));
+    snode_host_[nid].root_gain = static_cast<float>(
+        evaluator.CalcGain(parentid, snode_host_[nid].stats));
   }
   builder_monitor_.Stop("InitNewNode");
 }

@@ -72,7 +72,7 @@ void HistUpdater<GradientSumT>::BuildHistogramsLossGuide(
   std::vector<int> sync_ids;
   hist_rows_adder_->AddHistRows(this, &sync_ids, p_tree);
   qu_.wait_and_throw();
-   BuildLocalHistograms(gmat, p_tree, gpair_device);
+  BuildLocalHistograms(gmat, p_tree, gpair_device);
   hist_synchronizer_->SyncHistograms(this, sync_ids, p_tree);
 }
 
@@ -854,7 +854,8 @@ void HistUpdater<GradientSumT>::ApplySplit(
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::InitNewNode(int nid,
                                             const common::GHistIndexMatrix& gmat,
-                                            const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                                            const USMVector<GradientPair,
+                                                            MemoryType::on_device> &gpair,
                                             const DMatrix& fmat,
                                             const RegTree& tree) {
   builder_monitor_.Start("InitNewNode");

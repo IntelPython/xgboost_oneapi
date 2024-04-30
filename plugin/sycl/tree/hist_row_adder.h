@@ -27,23 +27,13 @@ class BatchHistRowsAdder: public HistRowsAdder<GradientSumT> {
                    std::vector<int>* sync_ids, RegTree *p_tree) override {
     builder->builder_monitor_.Start("AddHistRows");
 
-    int max_nid = 0;
     for (auto const& entry : builder->nodes_for_explicit_hist_build_) {
       int nid = entry.nid;
-      max_nid = nid > max_nid ? nid : max_nid;
+      builder->hist_.AddHistRow(nid);
     }
     for (auto const& node : builder->nodes_for_subtraction_trick_) {
-      max_nid = node.nid > max_nid ? node.nid : max_nid;
+      builder->hist_.AddHistRow(node.nid);
     }
-
-    for (auto const& entry : builder->nodes_for_explicit_hist_build_) {
-      int nid = entry.nid;
-      auto event = builder->hist_.AddHistRow(nid);
-    }
-    for (auto const& node : builder->nodes_for_subtraction_trick_) {
-      auto event = builder->hist_.AddHistRow(node.nid);
-    }
-    builder->hist_.Wait_and_throw();
 
     builder->builder_monitor_.Stop("AddHistRows");
   }

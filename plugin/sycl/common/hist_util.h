@@ -97,10 +97,6 @@ class HistCollection {
     return event;
   }
 
-  void Wait_and_throw() {
-    qu_.wait_and_throw();
-  }
-
  private:
   /*! \brief Number of all bins over all features */
   uint32_t nbins_ = 0;

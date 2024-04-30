@@ -45,7 +45,7 @@ class BatchHistSynchronizer: public HistSynchronizer<GradientSumT> {
         auto& parent_hist = builder->hist_[parent_id];
         auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
         hist_sync_events_[i] = common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
-                                                      this_hist, nbins, ::sycl::event());
+                                                       this_hist, nbins, ::sycl::event());
       }
     }
     builder->qu_.wait_and_throw();

@@ -166,10 +166,10 @@ class HistUpdater {
                            std::vector<int32_t>* split_conditions);
 
   void InitNewNode(int nid,
-                    const common::GHistIndexMatrix& gmat,
-                    const std::vector<GradientPair>& gpair,
-                    const DMatrix& fmat,
-                    const RegTree& tree);
+                   const common::GHistIndexMatrix& gmat,
+                   const USMVector<GradientPair, MemoryType::on_device> &gpair,
+                   const DMatrix& fmat,
+                   const RegTree& tree);
 
   // if sum of statistics for non-missing values in the node
   // is equal to sum of statistics for all values:
@@ -181,18 +181,17 @@ class HistUpdater {
   void ExpandWithDepthWise(const common::GHistIndexMatrix &gmat,
                             DMatrix *p_fmat,
                             RegTree *p_tree,
-                            const std::vector<GradientPair> &gpair,
-                            const USMVector<GradientPair, MemoryType::on_device> &gpair_device);
+                            const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   void BuildLocalHistograms(const common::GHistIndexMatrix &gmat,
                             RegTree *p_tree,
-                            const USMVector<GradientPair, MemoryType::on_device> &gpair_device);
+                            const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   void BuildHistogramsLossGuide(
                       ExpandEntry entry,
                       const common::GHistIndexMatrix &gmat,
                       RegTree *p_tree,
-                      const USMVector<GradientPair, MemoryType::on_device> &gpair_device);
+                      const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   // Split nodes to 2 sets depending on amount of rows in each node
   // Histograms for small nodes will be built explicitly
@@ -209,7 +208,7 @@ class HistUpdater {
   void BuildNodeStats(const common::GHistIndexMatrix &gmat,
                       DMatrix *p_fmat,
                       RegTree *p_tree,
-                      const std::vector<GradientPair> &gpair);
+                      const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
   void EvaluateAndApplySplits(const common::GHistIndexMatrix &gmat,
                               RegTree *p_tree,
@@ -228,8 +227,7 @@ class HistUpdater {
   void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
                            DMatrix* p_fmat,
                            RegTree* p_tree,
-                           const std::vector<GradientPair> &gpair,
-                           const USMVector<GradientPair, MemoryType::on_device>& gpair_device);
+                           const USMVector<GradientPair, MemoryType::on_device>& gpair);
 
   void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
 

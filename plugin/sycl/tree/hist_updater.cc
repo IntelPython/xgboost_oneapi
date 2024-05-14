@@ -490,10 +490,6 @@ void HistUpdater<GradientSumT>::InitData(
 
     hist_buffer_.Init(qu_, nbins);
     size_t buffer_size = 2048;
-    const size_t min_block_size = 128;
-    if (buffer_size > info.num_row_ / min_block_size + 1) {
-      buffer_size = info.num_row_ / min_block_size + 1;
-    }
     hist_buffer_.Reset(buffer_size);
 
     // initialize histogram builder

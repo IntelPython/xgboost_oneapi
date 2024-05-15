@@ -158,7 +158,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
   auto event_main = qu.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(nblocks, work_group_size),
-                                           ::sycl::range<2>(      1, work_group_size)),
+                                           ::sycl::range<2>(1, work_group_size)),
                        [=](::sycl::nd_item<2> pid) {
       size_t block = pid.get_global_id(0);
       size_t feat = pid.get_global_id(1);
@@ -231,7 +231,7 @@ template<typename FPType, typename BinIdxType, bool isDense>
   auto event_main = qu.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event_fill);
     cgh.parallel_for<>(::sycl::nd_range<2>(::sycl::range<2>(size, n_work_groups * work_group_size),
-                                           ::sycl::range<2>(   1, work_group_size)),
+                                           ::sycl::range<2>(1, work_group_size)),
                        [=](::sycl::nd_item<2> pid) {
       const int i = pid.get_global_id(0);
       auto group  = pid.get_group();

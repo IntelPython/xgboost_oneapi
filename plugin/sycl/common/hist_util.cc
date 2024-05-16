@@ -114,6 +114,30 @@ template ::sycl::event SubtractionHist(::sycl::queue qu,
                               const GHistRow<double, MemoryType::on_device>& src2,
                               size_t size, ::sycl::event event_priv);
 
+inline auto GetBlocksParameters(const ::sycl::queue& qu, size_t size, size_t max_nblocks) {
+  struct _ {
+    size_t block_size, nblocks;
+  };
+
+  const size_t min_block_size = 32;
+  const size_t max_compute_units =
+    qu.get_device().get_info<::sycl::info::device::max_compute_units>();
+
+  size_t nblocks = max_compute_units;
+
+  size_t block_size = size / nblocks + !!(size % nblocks);
+  if (block_size > (1u << 12)) {
+    nblocks = max_nblocks;
+    block_size = size / nblocks + !!(size % nblocks);
+  }
+  if (block_size < min_block_size) {
+    block_size = min_block_size;
+    nblocks = size / block_size + !!(size % block_size);
+  }
+
+  return _{block_size, nblocks};
+}
+
 // Kernel with buffer using
 template<typename FPType, typename BinIdxType, bool isDense>
 ::sycl::event BuildHistKernel(::sycl::queue qu,
@@ -136,22 +160,10 @@ template<typename FPType, typename BinIdxType, bool isDense>
     qu.get_device().get_info<::sycl::info::device::max_work_group_size>();
   const size_t work_group_size = n_columns < max_work_group_size ? n_columns : max_work_group_size;
 
-  const size_t max_compute_units =
-    qu.get_device().get_info<::sycl::info::device::max_compute_units>();
-
-  size_t nblocks = max_compute_units;
-  size_t min_block_size = 32;
-
-  size_t block_size = size / nblocks + !!(size % nblocks);
-  if (block_size > (1u << 12)) {
-    const size_t max_nblocks = hist_buffer->Size() / (nbins * 2);
-    nblocks = max_nblocks;
-    block_size = size / nblocks + !!(size % nblocks);
-  }
-  if (block_size < min_block_size) {
-    block_size = min_block_size;
-    nblocks = size / block_size + !!(size % block_size);
-  }
+  // Captured structured bindings are a C++20 extension
+  const auto block_params = GetBlocksParameters(qu, size, hist_buffer->Size() / (nbins * 2));
+  const size_t block_size = block_params.block_size;
+  const size_t nblocks = block_params.nblocks;
 
   GradientPairT* hist_buffer_data = hist_buffer->Data();
   auto event_fill = qu.fill(hist_buffer_data, GradientPairT(0, 0), nblocks * nbins * 2, event_priv);

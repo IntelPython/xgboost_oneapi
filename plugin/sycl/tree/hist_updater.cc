@@ -336,7 +336,6 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
 
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::Update(
-    Context const * ctx,
     xgboost::tree::TrainParam const *param,
     const common::GHistIndexMatrix &gmat,
     linalg::Matrix<GradientPair> *gpair,
@@ -345,6 +344,10 @@ void HistUpdater<GradientSumT>::Update(
     xgboost::common::Span<HostDeviceVector<bst_node_t>> out_position,
     RegTree *p_tree) {
   builder_monitor_.Start("Update");
+
+  if (!column_sampler_) {
+    column_sampler_ = xgboost::common::MakeColumnSampler(ctx_);
+  }
 
   tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
   interaction_constraints_.Reset();
@@ -575,9 +578,9 @@ void HistUpdater<GradientSumT>::InitData(
 
   // store a pointer to the tree
   p_last_tree_ = &tree;
-  column_sampler_.Init(ctx_, info.num_col_, info.feature_weights.ConstHostVector(),
-                       param_.colsample_bynode, param_.colsample_bylevel,
-                       param_.colsample_bytree);
+  column_sampler_->Init(ctx_, info.num_col_, info.feature_weights.ConstHostVector(),
+                        param_.colsample_bynode, param_.colsample_bylevel,
+                        param_.colsample_bytree);
   if (data_layout_ == kDenseDataZeroBased || data_layout_ == kDenseDataOneBased) {
     /* specialized code for dense data:
        choose the column that has a least positive number of discrete bins.
@@ -597,8 +600,10 @@ void HistUpdater<GradientSumT>::InitData(
     }
     CHECK_GT(min_nbins_per_feature, 0U);
   }
-
-  std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+  {
+    qu_.wait_and_throw();
+    std::fill(snode_host_.begin(), snode_host_.end(),  NodeEntry<GradientSumT>(param_));
+  }
 
   {
     if (param_.grow_policy == xgboost::tree::TrainParam::kLossGuide) {
@@ -628,7 +633,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   size_t total_features = 0;
   for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
     const int32_t nid = nodes_set[nid_in_set].nid;
-    features_sets[nid_in_set] = column_sampler_.GetFeatureSet(tree.GetDepth(nid));
+    features_sets[nid_in_set] = column_sampler_->GetFeatureSet(tree.GetDepth(nid));
     for (size_t idx = 0; idx < features_sets[nid_in_set]->Size(); idx++) {
       const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {

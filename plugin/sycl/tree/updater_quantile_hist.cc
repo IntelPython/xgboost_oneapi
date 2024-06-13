@@ -80,7 +80,7 @@ void QuantileHistMaker::CallUpdate(
   qu_.wait();
 
   for (auto tree : trees) {
-    pimpl->Update(ctx_, param, gmat_, gpair, gpair_device_, dmat, out_position, tree);
+    pimpl->Update(param, gmat_, gpair, gpair_device_, dmat, out_position, tree);
   }
 }
 

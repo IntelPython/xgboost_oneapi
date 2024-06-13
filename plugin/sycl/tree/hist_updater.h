@@ -62,18 +62,19 @@ class HistUpdater {
       tree_evaluator_(qu, param, fmat->Info().num_col_),
       pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
-      p_last_tree_(nullptr), p_last_fmat_(fmat),
-      column_sampler_(seed_) {
+      p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
     kernel_monitor_.Init("SYCL::Quantile::HistUpdater");
+    if (param.max_depth > 0) {
+      snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
+    }
     const auto sub_group_sizes =
       qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
   }
 
   // update one tree, growing
-  void Update(Context const * ctx,
-              xgboost::tree::TrainParam const *param,
+  void Update(xgboost::tree::TrainParam const *param,
               const common::GHistIndexMatrix &gmat,
               linalg::Matrix<GradientPair> *gpair,
               const USMVector<GradientPair, MemoryType::on_device>& gpair_device,
@@ -181,11 +182,6 @@ class HistUpdater {
                       RegTree *p_tree,
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
-  void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
-                           DMatrix* p_fmat,
-                           RegTree* p_tree,
-                           const USMVector<GradientPair, MemoryType::on_device>& gpair);
-
   void EvaluateAndApplySplits(const common::GHistIndexMatrix &gmat,
                               RegTree *p_tree,
                               int *num_leaves,
@@ -200,6 +196,11 @@ class HistUpdater {
             std::vector<ExpandEntry>* nodes_for_apply_split,
             std::vector<ExpandEntry>* temp_qexpand_depth);
 
+  void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
+                           DMatrix* p_fmat,
+                           RegTree* p_tree,
+                           const USMVector<GradientPair, MemoryType::on_device>& gpair);
+
   void ReduceHists(const std::vector<int>& sync_ids, size_t nbins);
 
   inline static bool LossGuide(ExpandEntry lhs, ExpandEntry rhs) {
@@ -213,13 +214,14 @@ class HistUpdater {
   //  --data fields--
   const Context* ctx_;
   size_t sub_group_size_;
+  const xgboost::tree::TrainParam& param_;
+  std::shared_ptr<xgboost::common::ColumnSampler> column_sampler_;
 
   // the internal row sets
   common::RowSetCollection row_set_collection_;
   std::vector<SplitQuery> split_queries_host_;
   USMVector<SplitQuery, MemoryType::on_device> split_queries_device_;
 
-  const xgboost::tree::TrainParam& param_;
   TreeEvaluator<GradientSumT> tree_evaluator_;
   std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
@@ -258,7 +260,6 @@ class HistUpdater {
   uint32_t fid_least_bins_;
 
   uint64_t seed_ = 0;
-  xgboost::common::ColumnSampler column_sampler_;
 
   common::PartitionBuilder partition_builder_;
 

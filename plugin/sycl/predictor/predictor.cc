@@ -2,10 +2,6 @@
  * Copyright by Contributors 2017-2024
  */
 #include <dmlc/timer.h>
-// #pragma GCC diagnostic push
-// #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
-// #pragma GCC diagnostic ignored "-W#pragma-messages"
-// #pragma GCC diagnostic pop
 
 #include <cstddef>
 #include <limits>

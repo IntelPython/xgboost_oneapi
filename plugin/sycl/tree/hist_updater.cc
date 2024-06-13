@@ -345,10 +345,6 @@ void HistUpdater<GradientSumT>::Update(
     RegTree *p_tree) {
   builder_monitor_.Start("Update");
 
-  if (!column_sampler_) {
-    column_sampler_ = xgboost::common::MakeColumnSampler(ctx_);
-  }
-
   tree_evaluator_.Reset(qu_, param_, p_fmat->Info().num_col_);
   interaction_constraints_.Reset();
 
@@ -487,6 +483,10 @@ void HistUpdater<GradientSumT>::InitData(
   }
   builder_monitor_.Start("InitData");
   const auto& info = fmat.Info();
+
+  if (!column_sampler_) {
+    column_sampler_ = xgboost::common::MakeColumnSampler(ctx_);
+  }
 
   // initialize the row set
   {

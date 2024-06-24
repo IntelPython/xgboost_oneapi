@@ -1,11 +1,7 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 if(PLUGIN_SYCL)
-  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(CMAKE_CXX_COMPILER  "g++")
-    set(CMAKE_C_COMPILER  "gcc")
-    string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  endif()
+  string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
 project(xgboost LANGUAGES CXX C VERSION 2.1.0)

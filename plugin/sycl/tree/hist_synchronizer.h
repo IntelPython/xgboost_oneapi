@@ -72,17 +72,21 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
     for (int node = 0; node < builder->nodes_for_explicit_hist_build_.size(); node++) {
       const auto entry = builder->nodes_for_explicit_hist_build_[node];
       auto& this_hist = builder->hist_[entry.nid];
-      // Store posible parent node
-      auto& this_local = builder->hist_local_worker_[entry.nid];
-      common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
+      // // Store posible parent node
+      // auto& this_local = builder->hist_local_worker_[entry.nid];
+      // common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
 
       if (!(*p_tree)[entry.nid].IsRoot()) {
         const size_t parent_id = (*p_tree)[entry.nid].Parent();
         auto sibling_nid = entry.GetSiblingId(p_tree, parent_id);
         auto& parent_hist = builder->hist_local_worker_[parent_id];
+        // Store posible parent node
+        common::CopyHist(builder->qu_, &parent_hist, builder->hist_[parent_id], nbins);
+
         auto& sibling_hist = builder->hist_[sibling_nid];
         common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,
                                 this_hist, nbins, ::sycl::event());
+        builder->qu_.wait_and_throw();
         // Store posible parent node
         auto& sibling_local = builder->hist_local_worker_[sibling_nid];
         common::CopyHist(builder->qu_, &sibling_local, sibling_hist, nbins);
@@ -111,10 +115,14 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
           auto& sibling_hist = builder->hist_[entry.GetSiblingId(p_tree, parent_id)];
           common::SubtractionHist(builder->qu_, &this_hist, parent_hist,
                                   sibling_hist, nbins, ::sycl::event());
+          builder->qu_.wait_and_throw();
         }
       }
     }
   }
+
+ private:
+  std::vector<::sycl::event> hist_sync_events_;
 };
 
 }  // namespace tree

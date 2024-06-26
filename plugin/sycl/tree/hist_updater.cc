@@ -26,19 +26,21 @@ using ::sycl::ext::oneapi::maximum;
 template <typename GradientSumT>
 void HistUpdater<GradientSumT>::ReduceHists(const std::vector<int>& sync_ids,
                                             size_t nbins) {
-  std::vector<GradientPairT> reduce_buffer(sync_ids.size() * nbins);
+  if (reduce_buffer_.size() < sync_ids.size() * nbins) {
+    reduce_buffer_.resize(sync_ids.size() * nbins);
+  }
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto& this_hist = hist_[sync_ids[i]];
     const GradientPairT* psrc = reinterpret_cast<const GradientPairT*>(this_hist.DataConst());
-    std::copy(psrc, psrc + nbins, reduce_buffer.begin() + i * nbins);
+    qu_.memcpy(reduce_buffer_.data() + i * nbins, psrc, nbins*sizeof(GradientPairT)).wait();
   }
   collective::Allreduce<collective::Operation::kSum>(
-    reinterpret_cast<GradientSumT*>(reduce_buffer.data()),
+    reinterpret_cast<GradientSumT*>(reduce_buffer_.data()),
     2 * nbins * sync_ids.size());
   for (size_t i = 0; i < sync_ids.size(); i++) {
     auto& this_hist = hist_[sync_ids[i]];
     GradientPairT* psrc = reinterpret_cast<GradientPairT*>(this_hist.Data());
-    std::copy(reduce_buffer.begin() + i * nbins, reduce_buffer.begin() + (i + 1) * nbins, psrc);
+    qu_.memcpy(psrc, reduce_buffer_.data() + i * nbins, nbins*sizeof(GradientPairT)).wait();
   }
 }
 

@@ -297,6 +297,8 @@ class HistUpdater {
   USMVector<bst_float, MemoryType::on_device> out_preds_buf_;
   bst_float* out_pred_ptr = nullptr;
 
+  std::vector<GradientPairT> reduce_buffer_;
+
   ::sycl::queue qu_;
 };
 

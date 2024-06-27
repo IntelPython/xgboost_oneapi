@@ -364,7 +364,6 @@ void HistUpdater<GradientSumT>::Update(
     p_tree->Stat(nid).base_weight = snode_host_[nid].weight;
     p_tree->Stat(nid).sum_hess = static_cast<float>(snode_host_[nid].stats.GetHess());
   }
-  pruner_->Update(param, gpair, p_fmat, out_position, std::vector<RegTree*>{p_tree});
 
   builder_monitor_.Stop("Update");
 }

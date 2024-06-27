@@ -73,15 +73,13 @@ class DistributedHistSynchronizer: public HistSynchronizer<GradientSumT> {
       const auto entry = builder->nodes_for_explicit_hist_build_[node];
       auto& this_hist = builder->hist_[entry.nid];
       // // Store posible parent node
-      // auto& this_local = builder->hist_local_worker_[entry.nid];
-      // common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
+      auto& this_local = builder->hist_local_worker_[entry.nid];
+      common::CopyHist(builder->qu_, &this_local, this_hist, nbins);
 
       if (!(*p_tree)[entry.nid].IsRoot()) {
         const size_t parent_id = (*p_tree)[entry.nid].Parent();
         auto sibling_nid = entry.GetSiblingId(p_tree, parent_id);
         auto& parent_hist = builder->hist_local_worker_[parent_id];
-        // Store posible parent node
-        common::CopyHist(builder->qu_, &parent_hist, builder->hist_[parent_id], nbins);
 
         auto& sibling_hist = builder->hist_[sibling_nid];
         common::SubtractionHist(builder->qu_, &sibling_hist, parent_hist,

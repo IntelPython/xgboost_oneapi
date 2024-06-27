@@ -55,12 +55,10 @@ class HistUpdater {
   explicit HistUpdater(const Context* ctx,
                        ::sycl::queue qu,
                        const xgboost::tree::TrainParam& param,
-                       std::unique_ptr<TreeUpdater> pruner,
                        FeatureInteractionConstraintHost int_constraints_,
                        DMatrix const* fmat)
     : ctx_(ctx), qu_(qu), param_(param),
       tree_evaluator_(qu, param, fmat->Info().num_col_),
-      pruner_(std::move(pruner)),
       interaction_constraints_{std::move(int_constraints_)},
       p_last_tree_(nullptr), p_last_fmat_(fmat) {
     builder_monitor_.Init("SYCL::Quantile::HistUpdater");
@@ -223,7 +221,6 @@ class HistUpdater {
   USMVector<SplitQuery, MemoryType::on_device> split_queries_device_;
 
   TreeEvaluator<GradientSumT> tree_evaluator_;
-  std::unique_ptr<TreeUpdater> pruner_;
   FeatureInteractionConstraintHost interaction_constraints_;
 
   // back pointers to tree and data matrix

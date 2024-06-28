@@ -129,7 +129,6 @@ class SoftmaxMultiClassObj : public ObjFunction {
     const int nclass = param_.num_class;
     const auto ndata = static_cast<int64_t>(io_preds->Size() / nclass);
     max_preds_.Resize(ndata);
-
     {
       ::sycl::buffer<bst_float, 1> io_preds_buf(io_preds->HostPointer(), io_preds->Size());
 

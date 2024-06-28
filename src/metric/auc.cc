@@ -368,7 +368,8 @@ class EvalROCAUC : public EvalAUC<EvalROCAUC> {
     } else {
       std::tie(fp, tp, auc) = BinaryROCAUC(ctx_, predts.ConstHostVector(),
                                            info.labels.HostView().Slice(linalg::All(), 0),
-                                           common::OptionalWeights{info.weights_.ConstHostSpan()});    }
+                                           common::OptionalWeights{info.weights_.ConstHostSpan()});
+    }
     return std::make_tuple(fp, tp, auc);
   }
 

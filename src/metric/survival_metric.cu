@@ -136,7 +136,6 @@ class ElementWiseSurvivalMetricsReduction {
 
       dh::safe_cuda(cudaSetDevice(ctx.Ordinal()));
       result = DeviceReduceMetrics(weights, labels_lower_bound, labels_upper_bound, preds);
-    }
 #endif  // defined(XGBOOST_USE_CUDA)
     } else {
       result = CpuReduceMetrics(weights, labels_lower_bound, labels_upper_bound,

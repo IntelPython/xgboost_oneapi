@@ -664,8 +664,8 @@ auto MakeVec(T *ptr, size_t s, DeviceOrd device = DeviceOrd::CPU()) {
 
 template <typename T>
 auto MakeVec(HostDeviceVector<T> *data) {
-  return MakeVec(data->Device().IsCUDA() ? data->DevicePointer() : data->HostPointer(), data->Size(),
-                 data->Device());
+  return MakeVec(data->Device().IsCUDA() ? data->DevicePointer() : data->HostPointer(),
+                 data->Size(), data->Device());
 }
 
 template <typename T>

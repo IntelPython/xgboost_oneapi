@@ -155,7 +155,7 @@ float GetLeafWeight(const Node* nodes, const float* fval_buff) {
 
 template <bool any_missing>
 void DevicePredictInternal(::sycl::queue* qu,
-                           USMVector<float,   MemoryType::on_device>* fval_buff,
+                           USMVector<float, MemoryType::on_device>* fval_buff,
                            USMVector<uint8_t, MemoryType::on_device>* miss_buff,
                            const sycl::DeviceMatrix& dmat,
                            HostDeviceVector<float>* out_preds,
@@ -183,7 +183,7 @@ void DevicePredictInternal(::sycl::queue* qu,
   if (update_buffs) {
     fval_buff->Resize(qu, num_features * num_rows);
     if constexpr (any_missing) {
-      miss_buff->Resize(qu, num_features * num_rows, 1, &events[0]);
+      miss_buff->ResizeAndFill(qu, num_features * num_rows, 1, &events[0]);
     }
   }
   auto* fval_buff_ptr = fval_buff->Data();

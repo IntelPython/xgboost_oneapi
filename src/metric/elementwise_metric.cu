@@ -450,15 +450,15 @@ class QuantileError : public MetricNoCache {
     auto y_true = info.labels.View(ctx->Device());
     preds.SetDevice(ctx->Device());
     alpha_.SetDevice(ctx->Device());
-    auto alpha = ctx->IsCPU() ? alpha_.ConstHostSpan() : alpha_.ConstDeviceSpan();
+    auto alpha = ctx->IsCUDA() ? alpha_.ConstDeviceSpan() : alpha_.ConstHostSpan();
     std::size_t n_targets = preds.Size() / info.num_row_ / alpha_.Size();
     CHECK_NE(n_targets, 0);
     auto y_predt = linalg::MakeTensorView(ctx, &preds, static_cast<std::size_t>(info.num_row_),
                                           alpha_.Size(), n_targets);
 
     info.weights_.SetDevice(ctx->Device());
-    common::OptionalWeights weight{ctx->IsCPU() ? info.weights_.ConstHostSpan()
-                                                : info.weights_.ConstDeviceSpan()};
+    common::OptionalWeights weight{ctx->IsCUDA() ? info.weights_.ConstDeviceSpan()
+                                                 : info.weights_.ConstHostSpan()};
 
     auto result = Reduce(
         ctx, info, [=] XGBOOST_DEVICE(std::size_t i, std::size_t sample_id, std::size_t target_id) {

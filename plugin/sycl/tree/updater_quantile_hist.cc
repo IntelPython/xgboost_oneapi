@@ -28,11 +28,6 @@ DMLC_REGISTER_PARAMETER(HistMakerTrainParam);
 void QuantileHistMaker::Configure(const Args& args) {
   const DeviceOrd device_spec = ctx_->Device();
   qu_ = device_manager.GetQueue(device_spec);
-  // initialize pruner
-  if (!pruner_) {
-    pruner_.reset(TreeUpdater::Create("prune", ctx_, task_));
-  }
-  pruner_->Configure(args);
 
   param_.UpdateAllowUnknown(args);
   hist_maker_param_.UpdateAllowUnknown(args);
@@ -55,7 +50,6 @@ void QuantileHistMaker::SetPimpl(std::unique_ptr<HistUpdater<GradientSumT>>* pim
                 ctx_,
                 qu_,
                 param_,
-                std::move(pruner_),
                 int_constraint_, dmat));
   if (collective::IsDistributed()) {
     (*pimpl)->SetHistSynchronizer(new DistributedHistSynchronizer<GradientSumT>());

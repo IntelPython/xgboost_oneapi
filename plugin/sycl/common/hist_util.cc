@@ -21,7 +21,7 @@ namespace common {
 template<typename GradientSumT>
 void InitHist(::sycl::queue qu, GHistRow<GradientSumT, MemoryType::on_device>* hist,
               size_t size, ::sycl::event* event) {
-  *event = qu.fill(hist->Begin(),
+  *event = qu.fill(hist->Data(),
                    xgboost::detail::GradientPairInternal<GradientSumT>(), size, *event);
 }
 template void InitHist(::sycl::queue qu,

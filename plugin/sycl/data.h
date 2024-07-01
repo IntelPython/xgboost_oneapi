@@ -53,9 +53,13 @@ class USMVector {
 
   std::shared_ptr<T> allocate_memory_(::sycl::queue* qu, size_t size) {
     if constexpr (memory_type == MemoryType::shared) {
-      return std::shared_ptr<T>(::sycl::malloc_shared<T>(size_, *qu), USMDeleter<T>(*qu));
+      auto* ptr = ::sycl::malloc_shared<T>(size_, *qu);
+      CHECK_NE(ptr, nullptr) << "Faild to allocate memory";
+      return std::shared_ptr<T>(ptr, USMDeleter<T>(*qu));
     } else {
-      return std::shared_ptr<T>(::sycl::malloc_device<T>(size_, *qu), USMDeleter<T>(*qu));
+      auto* ptr = ::sycl::malloc_device<T>(size_, *qu);
+      CHECK_NE(ptr, nullptr) << "Faild to allocate memory";
+      return std::shared_ptr<T>(ptr, USMDeleter<T>(*qu));
     }
   }
 

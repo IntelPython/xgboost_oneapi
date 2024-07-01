@@ -155,12 +155,6 @@ float GetLeafWeight(const Node* nodes, const float* fval_buff) {
 }
 
 class Predictor : public xgboost::Predictor {
-  mutable bool are_buffs_init = false;
-
-  void InitBuffers(::sycl::queue* qu, const std::vector<int>& sample_rate) const {
-    batch_processor_.InitBuffers(qu, sample_rate);
-  }
-
   template <bool any_missing>
   void DevicePredictInternal(::sycl::queue* qu,
                              const sycl::DeviceMatrix& dmat,
@@ -196,12 +190,12 @@ class Predictor : public xgboost::Predictor {
     auto* miss_buff_ptr = miss_buff.Data();
 
     auto& out_preds_vec = out_preds->HostVector();
-    
-
-    ::sycl::buffer<float, 1> out_preds_buf(out_preds_vec.data(), out_preds_vec.size());
+    io_buff.Resize(qu, out_preds_vec.size());
+    float* out_predictions = io_buff.Data();
+    events[0] = qu->memcpy(out_predictions, out_preds_vec.data(),
+                           out_preds_vec.size() * sizeof(float), events[0]);
     events[0] = qu->submit([&](::sycl::handler& cgh) {
       cgh.depends_on(events[0]);
-      auto out_predictions = out_preds_buf.template get_access<::sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<>(::sycl::range<1>(num_rows), [=](::sycl::id<1> pid) {
         int row_idx = pid[0];
         auto* fval_buff_row_ptr = fval_buff_ptr + num_features * row_idx;
@@ -244,6 +238,8 @@ class Predictor : public xgboost::Predictor {
         }
       });
     });
+    events[0] = qu->memcpy(out_preds_vec.data(), out_predictions,
+                           out_preds_vec.size() * sizeof(float), events[0]);
     qu->wait();
   }
 
@@ -362,17 +358,10 @@ class Predictor : public xgboost::Predictor {
   mutable sycl::DeviceMatrix device_matrix;
   mutable USMVector<float,   MemoryType::on_device> fval_buff;
   mutable USMVector<uint8_t, MemoryType::on_device> miss_buff;
+  mutable USMVector<float, MemoryType::on_device> io_buff;
 
   mutable xgboost::common::Monitor predictor_monitor_;
   std::unique_ptr<xgboost::Predictor> cpu_predictor;
-
-  static constexpr size_t kBatchSize = 1u << 22;
-  using BatchProcessingHelper = linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3>;
-  using BatchInputIteratorT = BatchProcessingHelper::InputIteratorT;
-  using BatchOutputIteratorT = BatchProcessingHelper::OutputIteratorT;
-  using BatchConstInputIteratorT = BatchProcessingHelper::ConstInputIteratorT;
-
-  mutable BatchProcessingHelper batch_processor_;
 };
 
 XGBOOST_REGISTER_PREDICTOR(Predictor, "sycl_predictor")

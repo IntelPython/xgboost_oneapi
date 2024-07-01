@@ -191,7 +191,7 @@ class RegLossObj : public ObjFunction {
   using BatchInputIteratorT = BatchProcessingHelper::InputIteratorT;
   using BatchOutputIteratorT = BatchProcessingHelper::OutputIteratorT;
   using BatchConstInputIteratorT = BatchProcessingHelper::ConstInputIteratorT;
-  mutable BatchProcessingHelper batch_processor_;  
+  mutable BatchProcessingHelper batch_processor_;
 };
 
 XGBOOST_REGISTER_OBJECTIVE(SquaredLossRegression,

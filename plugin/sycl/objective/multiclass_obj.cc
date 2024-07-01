@@ -167,7 +167,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
       }, io_preds);
       qu_.wait_and_throw();
     } else {
-      InitBuffers({nclass, 1, 1, nclass});
+      InitBuffers({nclass, 1, nclass, 1});
       batch_processor_.Calculate([=] (const std::vector<::sycl::event>& events,
                                       size_t ndata,
                                       BatchInputIteratorT max_preds,
@@ -215,7 +215,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
   mutable ::sycl::queue qu_;
   static constexpr size_t kBatchSize = 1u << 22;
-  using BatchProcessingHelper = linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3>;
+  using BatchProcessingHelper =
+    linalg::BatchProcessingHelper<GradientPair, bst_float, kBatchSize, 3>;
   using BatchInputIteratorT = BatchProcessingHelper::InputIteratorT;
   using BatchOutputIteratorT = BatchProcessingHelper::OutputIteratorT;
   using BatchConstInputIteratorT = BatchProcessingHelper::ConstInputIteratorT;

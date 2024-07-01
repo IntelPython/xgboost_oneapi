@@ -71,8 +71,8 @@ class RowSetCollection {
   inline void Init() {
     CHECK_EQ(elem_of_each_node_.size(), 0U);
 
-    const size_t* begin = row_indices_.Begin();
-    const size_t* end = row_indices_.End();
+    const size_t* begin = row_indices_.Data();
+    const size_t* end = begin + row_indices_.Size();
     elem_of_each_node_.emplace_back(Elem(begin, end, 0));
   }
 
@@ -86,7 +86,7 @@ class RowSetCollection {
                        size_t n_right) {
     const Elem e = elem_of_each_node_[node_id];
     CHECK(e.begin != nullptr);
-    size_t* all_begin = row_indices_.Begin();
+    size_t* all_begin = row_indices_.Data();
     size_t* begin = all_begin + (e.begin - all_begin);
 
 

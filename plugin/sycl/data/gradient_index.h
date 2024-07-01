@@ -124,11 +124,11 @@ struct Index {
   }
 
   uint8_t* begin() const {
-    return data_.Begin();
+    return const_cast<uint8_t*>(data_.DataConst());
   }
 
   uint8_t* end() const {
-    return data_.End();
+    return begin() + data_.Size();
   }
 
   void setQueue(::sycl::queue qu) {

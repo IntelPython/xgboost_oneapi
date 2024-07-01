@@ -37,8 +37,8 @@ TEST(SyclRowSetCollection, AddSplits) {
   {
     size_t nid_test = 0;
     auto& elem = row_set_collection[nid_test];
-    CHECK_EQ(elem.begin, row_indices.Begin());
-    CHECK_EQ(elem.end, row_indices.End());
+    CHECK_EQ(elem.begin, row_indices.Data());
+    CHECK_EQ(elem.end, row_indices.Data() + row_indices.Size());
     CHECK_EQ(elem.node_id , 0);
   }
 
@@ -61,16 +61,16 @@ TEST(SyclRowSetCollection, AddSplits) {
   {
     size_t nid_test = 1;
     auto& elem = row_set_collection[nid_test];
-    CHECK_EQ(elem.begin, row_indices.Begin());
-    CHECK_EQ(elem.end, row_indices.Begin() + n_left);
+    CHECK_EQ(elem.begin, row_indices.Data());
+    CHECK_EQ(elem.end, row_indices.Data() + n_left);
     CHECK_EQ(elem.node_id , nid_test);
   }
 
   {
     size_t nid_test = 2;
     auto& elem = row_set_collection[nid_test];
-    CHECK_EQ(elem.begin, row_indices.Begin() + n_left);
-    CHECK_EQ(elem.end, row_indices.End());
+    CHECK_EQ(elem.begin, row_indices.Data() + n_left);
+    CHECK_EQ(elem.end, row_indices.Data() + row_indices.Size());
     CHECK_EQ(elem.node_id , nid_test);
   }
 

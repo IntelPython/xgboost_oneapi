@@ -69,6 +69,80 @@ class USMVector {
 
 
  public:
+  class ConstIterator {
+    const T* ptr_;
+   public:
+    using difference_type = size_t;
+    using value_type = T;
+    using pointer = const T;
+    using reference = const T&;
+    using iterator_category = std::random_access_iterator_tag;
+
+    ConstIterator() : ptr_(nullptr) {}
+    explicit ConstIterator(const T* ptr = 0) : ptr_(ptr) {}
+    inline ConstIterator& operator+=(difference_type rhs) {ptr_ += rhs; return *this;}
+    inline ConstIterator& operator-=(difference_type rhs) {ptr_ -= rhs; return *this;}
+    inline const T& operator*() const {return *ptr_;}
+    inline const T* operator->() const {return ptr_;}
+    inline const T& operator[](difference_type idx) const {return ptr_[idx];}
+    
+    inline ConstIterator& operator++() {++ptr_; return *this;}
+    inline ConstIterator& operator--() {--ptr_; return *this;}
+
+    inline difference_type operator-(const ConstIterator& rhs) const {return ptr_-rhs.ptr_;}
+    inline ConstIterator operator+(difference_type rhs) const {return ConstIterator(ptr_+rhs);}
+    inline ConstIterator operator-(difference_type rhs) const {return ConstIterator(ptr_-rhs);}
+    friend inline ConstIterator operator+(difference_type lhs, const ConstIterator& rhs) {return ConstIterator(lhs+rhs.ptr_);}
+    friend inline ConstIterator operator-(difference_type lhs, const ConstIterator& rhs) {return ConstIterator(lhs-rhs.ptr_);}
+    
+    inline bool operator==(const ConstIterator& rhs) const {return ptr_ == rhs.ptr_;}
+    inline bool operator!=(const ConstIterator& rhs) const {return ptr_ != rhs.ptr_;}
+    inline bool operator>(const ConstIterator& rhs) const {return ptr_ > rhs.ptr_;}
+    inline bool operator<(const ConstIterator& rhs) const {return ptr_ < rhs.ptr_;}
+    inline bool operator>=(const ConstIterator& rhs) const {return ptr_ >= rhs.ptr_;}
+    inline bool operator<=(const ConstIterator& rhs) const {return ptr_ <= rhs.ptr_;}
+  };
+
+  class Iterator {
+    T* ptr_;
+   public:
+    using difference_type = size_t;
+    using value_type = T;
+    using pointer = const T;
+    using reference = const T&;
+    using iterator_category = std::random_access_iterator_tag;
+
+    Iterator() : ptr_(nullptr) {}
+    explicit Iterator(T* ptr = 0) : ptr_(ptr) {}
+    inline Iterator& operator+=(difference_type rhs) {ptr_ += rhs; return *this;}
+    inline Iterator& operator-=(difference_type rhs) {ptr_ -= rhs; return *this;}
+    inline T& operator*() const {return *ptr_;}
+    inline T* operator->() const {return ptr_;}
+    inline T& operator[](difference_type idx) const {return ptr_[idx];}
+    
+    inline Iterator& operator++() {++ptr_; return *this;}
+    inline Iterator& operator--() {--ptr_; return *this;}
+
+    inline difference_type operator-(const Iterator& rhs) const {return ptr_-rhs.ptr_;}
+    inline Iterator operator+(difference_type rhs) const {return Iterator(ptr_+rhs);}
+    inline Iterator operator-(difference_type rhs) const {return Iterator(ptr_-rhs);}
+    friend inline Iterator operator+(difference_type lhs, const Iterator& rhs) {return Iterator(lhs+rhs.ptr_);}
+    friend inline Iterator operator-(difference_type lhs, const Iterator& rhs) {return Iterator(lhs-rhs.ptr_);}
+    
+    inline bool operator==(const Iterator& rhs) const {return ptr_ == rhs.ptr_;}
+    inline bool operator!=(const Iterator& rhs) const {return ptr_ != rhs.ptr_;}
+    inline bool operator>(const Iterator& rhs) const {return ptr_ > rhs.ptr_;}
+    inline bool operator<(const Iterator& rhs) const {return ptr_ < rhs.ptr_;}
+    inline bool operator>=(const Iterator& rhs) const {return ptr_ >= rhs.ptr_;}
+    inline bool operator<=(const Iterator& rhs) const {return ptr_ <= rhs.ptr_;}
+  };
+
+  ConstIterator Cbegin() { return ConstIterator(data_.get()); }
+  ConstIterator Cend() { return ConstIterator(data_.get() + size_); }
+
+  Iterator Begin() { return Iterator(data_.get()); }
+  Iterator End() { return Iterator(data_.get() + size_); }
+
   USMVector() : size_(0), capacity_(0), data_(nullptr) {}
 
   USMVector(::sycl::queue* qu, size_t size) : size_(size), capacity_(size) {
@@ -109,9 +183,6 @@ class USMVector {
 
   T& operator[] (size_t i) { return data_.get()[i]; }
   const T& operator[] (size_t i) const { return data_.get()[i]; }
-
-  T* Begin () const { return data_.get(); }
-  T* End () const { return data_.get() + size_; }
 
   bool Empty() const { return (size_ == 0); }
 

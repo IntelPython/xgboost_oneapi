@@ -19,7 +19,7 @@ def test_sycl_binary_classification():
 
     digits = load_digits(n_class=2)
     y = digits["target"]
-    X = digits["data"]
+    X = np.float32(digits["data"])
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):
         for train_index, test_index in kf.split(X, y):

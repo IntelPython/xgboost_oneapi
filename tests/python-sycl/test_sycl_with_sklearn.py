@@ -18,7 +18,7 @@ def test_sycl_binary_classification():
     from sklearn.model_selection import KFold
 
     digits = load_digits(n_class=2)
-    y = digits["target"]
+    y = np.int32(digits["target"])
     X = np.float32(digits["data"])
     kf = KFold(n_splits=2, shuffle=True, random_state=rng)
     for cls in (xgb.XGBClassifier, xgb.XGBRFClassifier):

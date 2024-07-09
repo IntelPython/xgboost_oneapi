@@ -453,7 +453,7 @@ void HistUpdater<GradientSumT>::InitSampling(
     * In this case the device doesn't have fp64 support, 
     * we generate bernoulli distributed random values from uniform distribution
     */
-    if (qu_.get_device().has(::sycl::aspect::fp64)) {
+    if (has_fp64_support_) {
       // Use oneDPL bernoulli_distribution for better perf
       event = qu_.submit([&](::sycl::handler& cgh) {
         auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);

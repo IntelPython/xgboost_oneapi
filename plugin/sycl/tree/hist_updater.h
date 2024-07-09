@@ -66,6 +66,7 @@ class HistUpdater {
     if (param.max_depth > 0) {
       snode_device_.Resize(&qu, 1u << (param.max_depth + 1));
     }
+    has_fp64_support_ = qu_.get_device().has(::sycl::aspect::fp64);
     const auto sub_group_sizes =
       qu_.get_device().get_info<::sycl::info::device::sub_group_sizes>();
     sub_group_size_ = sub_group_sizes.back();
@@ -211,6 +212,7 @@ class HistUpdater {
 
   //  --data fields--
   const Context* ctx_;
+  bool has_fp64_support_;
   size_t sub_group_size_;
   const xgboost::tree::TrainParam& param_;
   std::shared_ptr<xgboost::common::ColumnSampler> column_sampler_;

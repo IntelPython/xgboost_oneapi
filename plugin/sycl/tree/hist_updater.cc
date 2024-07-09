@@ -453,12 +453,21 @@ void HistUpdater<GradientSumT>::InitSampling(
                                           [=](::sycl::item<1> pid) {
         uint64_t i = pid.get_id(0);
 
-        // Create minstd_rand engine
-        oneapi::dpl::minstd_rand engine(seed, i);
-        oneapi::dpl::bernoulli_distribution coin_flip(subsample);
+        // // Create minstd_rand engine
+        // oneapi::dpl::minstd_rand engine(seed, i);
+        // oneapi::dpl::bernoulli_distribution coin_flip(subsample);
 
-        auto rnd = coin_flip(engine);
-        if (gpair_ptr[i].GetHess() >= 0.0f && rnd) {
+        // auto rnd = coin_flip(engine);
+
+        /* 
+         * oneDLP bernoulli_distribution implicitly uses double.
+         * We generate bernoulli distributed random values from uniform distribution
+         */
+        oneapi::dpl::minstd_rand engine(seed, i);
+        oneapi::dpl::uniform_real_distribution<float> distr;
+        const float rnd = distr(engine);
+        const bool bernoulli_rnd = rnd < subsample ? 1 : 0;
+        if (gpair_ptr[i].GetHess() >= 0.0f && bernoulli_rnd) {
           AtomicRef<uint64_t> num_samples_ref(flag_buf_acc[0]);
           row_idx[num_samples_ref++] = i;
         }

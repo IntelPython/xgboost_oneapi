@@ -472,7 +472,6 @@ void HistUpdater<GradientSumT>::InitSampling(
         });
       });
     } else {
-      LOG(FATAL) << "Fail";
       // Use oneDPL uniform for better perf, as far as bernoulli_distribution uses fp64
       event = qu_.submit([&](::sycl::handler& cgh) {
         auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);

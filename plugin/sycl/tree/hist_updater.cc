@@ -488,7 +488,7 @@ void HistUpdater<GradientSumT>::InitSampling(
             row_idx[num_samples_ref++] = i;
           }
         });
-      });      
+      });
     }
     /* After calling a destructor for flag_buf,  content will be copyed to num_samples */
   }

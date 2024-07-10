@@ -95,8 +95,8 @@ class HistUpdater {
   friend class DistributedHistRowsAdder<GradientSumT>;
 
   struct SplitQuery {
-    int nid;
-    int fid;
+    bst_node_t nid;
+    size_t fid;
     SplitEntry<GradientSumT> best;
     const GradientPairT* hist;
   };

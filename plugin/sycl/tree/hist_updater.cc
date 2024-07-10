@@ -472,7 +472,7 @@ void HistUpdater<GradientSumT>::InitSampling(
         });
       });
     } else {
-      // Use oneDPL uniform for better perf, as far as bernoulli_distribution uses fp64
+      // Use oneDPL uniform, as far as bernoulli_distribution uses fp64
       event = qu_.submit([&](::sycl::handler& cgh) {
         auto flag_buf_acc  = flag_buf.get_access<::sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<>(::sycl::range<1>(::sycl::range<1>(num_rows)),
@@ -659,35 +659,25 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   std::vector<FeatureSetType> features_sets(n_nodes_in_set);
 
   // Generate feature set for each tree node
-  size_t total_features = 0;
-  for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
-    const int32_t nid = nodes_set[nid_in_set].nid;
-    features_sets[nid_in_set] = column_sampler_->GetFeatureSet(tree.GetDepth(nid));
-    for (size_t idx = 0; idx < features_sets[nid_in_set]->Size(); idx++) {
-      const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx];
-      if (interaction_constraints_.Query(nid, fid)) {
-        total_features++;
-      }
-    }
-  }
-
-  split_queries_host_.resize(total_features);
   size_t pos = 0;
-
   for (size_t nid_in_set = 0; nid_in_set < n_nodes_in_set; ++nid_in_set) {
-    const size_t nid = nodes_set[nid_in_set].nid;
-
-    for (size_t idx = 0; idx < features_sets[nid_in_set]->Size(); idx++) {
-      const auto fid = features_sets[nid_in_set]->ConstHostVector()[idx];
+    const bst_node_t nid = nodes_set[nid_in_set].nid;
+    FeatureSetType features_set = column_sampler_->GetFeatureSet(tree.GetDepth(nid));
+    for (size_t idx = 0; idx < features_set->Size(); idx++) {
+      const size_t fid = features_set->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {
-        split_queries_host_[pos].nid = nid;
-        split_queries_host_[pos].fid = fid;
-        split_queries_host_[pos].hist = hist[nid].DataConst();
-        split_queries_host_[pos].best = snode_host_[nid].best;
-        pos++;
+        auto best = snode_host_[nid].best;
+        auto this_hist = hist[nid].DataConst();
+        if (pos < split_queries_host_.size()) {
+          split_queries_host_[pos] = SplitQuery{nid, fid, best, this_hist};
+        } else {
+          split_queries_host_.push_back({nid, fid, best, this_hist});
+        }
+        ++pos;
       }
     }
   }
+  const size_t total_features = pos;
 
   split_queries_device_.Resize(&qu_, total_features);
   auto event = qu_.memcpy(split_queries_device_.Data(), split_queries_host_.data(),

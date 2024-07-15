@@ -666,12 +666,11 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
     for (size_t idx = 0; idx < features_set->Size(); idx++) {
       const size_t fid = features_set->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {
-        auto best = snode_host_[nid].best;
         auto this_hist = hist[nid].DataConst();
         if (pos < split_queries_host_.size()) {
-          split_queries_host_[pos] = SplitQuery{nid, fid, best, this_hist};
+          split_queries_host_[pos] = SplitQuery{nid, fid, this_hist};
         } else {
-          split_queries_host_.push_back({nid, fid, best, this_hist});
+          split_queries_host_.push_back({nid, fid, this_hist});
         }
         ++pos;
       }
@@ -692,9 +691,13 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
   snode_device_.ResizeNoCopy(&qu_, snode_host_.size());
   event = qu_.memcpy(snode_device_.Data(), snode_host_.data(),
                      snode_host_.size() * sizeof(NodeEntry<GradientSumT>), event);
-  const NodeEntry<GradientSumT>* snode = snode_device_.DataConst();
+  const NodeEntry<GradientSumT>* snode = snode_device_.Data();
 
   const float min_child_weight = param_.min_child_weight;
+
+  best_splits_device_.ResizeNoCopy(&qu_, total_features);
+  if (best_splits_host_.size() < total_features) best_splits_host_.resize(total_features);
+  SplitEntry<GradientSumT>* best_splits = best_splits_device_.Data();
 
   event = qu_.submit([&](::sycl::handler& cgh) {
     cgh.depends_on(event);
@@ -707,17 +710,18 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
       int fid = split_queries_device[i].fid;
       const GradientPairT* hist_data = split_queries_device[i].hist;
 
+      best_splits[i] = snode[nid].best;
       EnumerateSplit(sg, cut_ptr, cut_val, hist_data, snode[nid],
-              &(split_queries_device[i].best), fid, nid, evaluator, min_child_weight);
+                     &(best_splits[i]), fid, nid, evaluator, min_child_weight);
     });
   });
-  event = qu_.memcpy(split_queries_host_.data(), split_queries_device_.Data(),
-                     total_features * sizeof(SplitQuery), event);
+  event = qu_.memcpy(best_splits_host_.data(), best_splits,
+                     total_features * sizeof(SplitEntry<GradientSumT>), event);
 
   qu_.wait();
   for (size_t i = 0; i < total_features; i++) {
     int nid = split_queries_host_[i].nid;
-    snode_host_[nid].best.Update(split_queries_host_[i].best);
+    snode_host_[nid].best.Update(best_splits_host_[i]);
   }
 
   builder_monitor_.Stop("EvaluateSplits");

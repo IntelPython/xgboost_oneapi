@@ -97,7 +97,7 @@ class HistUpdater {
   struct SplitQuery {
     bst_node_t nid;
     size_t fid;
-    SplitEntry<GradientSumT> best;
+    // SplitEntry<GradientSumT> best;
     const GradientPairT* hist;
   };
 
@@ -221,6 +221,9 @@ class HistUpdater {
   common::RowSetCollection row_set_collection_;
   std::vector<SplitQuery> split_queries_host_;
   USMVector<SplitQuery, MemoryType::on_device> split_queries_device_;
+
+  USMVector<SplitEntry<GradientSumT>, MemoryType::on_device> best_splits_device_;
+  std::vector<SplitEntry<GradientSumT>> best_splits_host_;
 
   TreeEvaluator<GradientSumT> tree_evaluator_;
   FeatureInteractionConstraintHost interaction_constraints_;

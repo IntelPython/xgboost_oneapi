@@ -97,7 +97,6 @@ class HistUpdater {
   struct SplitQuery {
     bst_node_t nid;
     size_t fid;
-    // SplitEntry<GradientSumT> best;
     const GradientPairT* hist;
   };
 

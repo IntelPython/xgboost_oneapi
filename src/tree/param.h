@@ -517,7 +517,6 @@ struct SplitEntryContainer {
       return false;
     }
   }
-
   /*!
    * \brief update the split entry, replace it if e is better
    * \param new_loss_chg loss reduction of new candidate

@@ -183,7 +183,7 @@ void HistUpdater<GradientSumT>::EvaluateAndApplySplits(
     int *num_leaves,
     int depth,
     std::vector<ExpandEntry> *temp_qexpand_depth) {
-  EvaluateSplits(qexpand_depth_wise_, gmat, hist_, *p_tree);
+  EvaluateSplits(qexpand_depth_wise_, gmat, *p_tree);
 
   std::vector<ExpandEntry> nodes_for_apply_split;
   AddSplitsToTree(gmat, p_tree, num_leaves, depth,
@@ -280,7 +280,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
 
   this->InitNewNode(ExpandEntry::kRootNid, gmat, gpair, *p_fmat, *p_tree);
 
-  this->EvaluateSplits({node}, gmat, hist_, *p_tree);
+  this->EvaluateSplits({node}, gmat, *p_tree);
   node.split.loss_chg = snode_host_[ExpandEntry::kRootNid].best.loss_chg;
 
   qexpand_loss_guided_->push(node);
@@ -325,7 +325,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
                                snode_host_[cleft].weight, snode_host_[cright].weight);
       interaction_constraints_.Split(nid, featureid, cleft, cright);
 
-      this->EvaluateSplits({left_node, right_node}, gmat, hist_, *p_tree);
+      this->EvaluateSplits({left_node, right_node}, gmat, *p_tree);
       left_node.split.loss_chg = snode_host_[cleft].best.loss_chg;
       right_node.split.loss_chg = snode_host_[cright].best.loss_chg;
 
@@ -649,14 +649,12 @@ template<typename GradientSumT>
 void HistUpdater<GradientSumT>::EvaluateSplits(
                         const std::vector<ExpandEntry>& nodes_set,
                         const common::GHistIndexMatrix& gmat,
-                        const common::HistCollection<GradientSumT, MemoryType::on_device>& hist,
                         const RegTree& tree) {
   builder_monitor_.Start("EvaluateSplits");
 
   const size_t n_nodes_in_set = nodes_set.size();
 
   using FeatureSetType = std::shared_ptr<HostDeviceVector<bst_feature_t>>;
-  std::vector<FeatureSetType> features_sets(n_nodes_in_set);
 
   // Generate feature set for each tree node
   size_t pos = 0;
@@ -666,7 +664,7 @@ void HistUpdater<GradientSumT>::EvaluateSplits(
     for (size_t idx = 0; idx < features_set->Size(); idx++) {
       const size_t fid = features_set->ConstHostVector()[idx];
       if (interaction_constraints_.Query(nid, fid)) {
-        auto this_hist = hist[nid].DataConst();
+        auto this_hist = hist_[nid].DataConst();
         if (pos < split_queries_host_.size()) {
           split_queries_host_[pos] = SplitQuery{nid, fid, this_hist};
         } else {

@@ -106,7 +106,6 @@ class HistUpdater {
 
   void EvaluateSplits(const std::vector<ExpandEntry>& nodes_set,
                       const common::GHistIndexMatrix& gmat,
-                      const common::HistCollection<GradientSumT, MemoryType::on_device>& hist,
                       const RegTree& tree);
 
   // Enumerate the split values of specific feature

@@ -93,7 +93,7 @@ jobs:
     - name: Display SYCL devices
       shell: bash -l {0}
       run: |
-        sycl-ls
+        lscpu
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |

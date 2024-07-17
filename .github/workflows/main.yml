@@ -90,6 +90,10 @@ jobs:
       run: |
         conda info
         conda list
+    - name: Display SYCL devices
+      shell: bash -l {0}
+      run: |
+        lscpu
     - name: Build and install XGBoost
       shell: bash -l {0}
       run: |

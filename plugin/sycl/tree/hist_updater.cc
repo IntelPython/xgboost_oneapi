@@ -13,6 +13,8 @@
 #include <limits>
 #include <vector>
 
+#include "../../src/tree/common_row_partitioner.h"
+
 #include "../common/hist_util.h"
 #include "../../src/collective/allreduce.h"
 
@@ -787,34 +789,6 @@ void HistUpdater<GradientSumT>::EnumerateSplit(
 }
 
 template <typename GradientSumT>
-void HistUpdater<GradientSumT>::FindSplitConditions(
-    const std::vector<ExpandEntry>& nodes,
-    const RegTree& tree,
-    const common::GHistIndexMatrix& gmat,
-    std::vector<int32_t>* split_conditions) {
-  const size_t n_nodes = nodes.size();
-  split_conditions->resize(n_nodes);
-
-  for (size_t i = 0; i < nodes.size(); ++i) {
-    const int32_t nid = nodes[i].nid;
-    const bst_uint fid = tree[nid].SplitIndex();
-    const bst_float split_pt = tree[nid].SplitCond();
-    const uint32_t lower_bound = gmat.cut.Ptrs()[fid];
-    const uint32_t upper_bound = gmat.cut.Ptrs()[fid + 1];
-    int32_t split_cond = -1;
-    // convert floating-point split_pt into corresponding bin_id
-    // split_cond = -1 indicates that split_pt is less than all known cut points
-    CHECK_LT(upper_bound,
-             static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
-    for (uint32_t i = lower_bound; i < upper_bound; ++i) {
-      if (split_pt == gmat.cut.Values()[i]) {
-        split_cond = static_cast<int32_t>(i);
-      }
-    }
-    (*split_conditions)[i] = split_cond;
-  }
-}
-template <typename GradientSumT>
 void HistUpdater<GradientSumT>::AddSplitsToRowSet(
                                                 const std::vector<ExpandEntry>& nodes,
                                                 RegTree* p_tree) {
@@ -835,11 +809,12 @@ void HistUpdater<GradientSumT>::ApplySplit(
                       const common::GHistIndexMatrix& gmat,
                       const common::HistCollection<GradientSumT, MemoryType::on_device>& hist,
                       RegTree* p_tree) {
+  using CommonRowPartitioner = xgboost::tree::CommonRowPartitioner;
   builder_monitor_.Start("ApplySplit");
 
   const size_t n_nodes = nodes.size();
-  std::vector<int32_t> split_conditions;
-  FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
+  std::vector<int32_t> split_conditions(n_nodes);
+  CommonRowPartitioner::FindSplitConditions(nodes, *p_tree, gmat, &split_conditions);
 
   partition_builder_.Init(&qu_, n_nodes, [&](size_t node_in_set) {
     const int32_t nid = nodes[node_in_set].nid;

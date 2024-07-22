@@ -124,11 +124,6 @@ class HistUpdater {
 
   void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);
 
-
-  void FindSplitConditions(const std::vector<ExpandEntry>& nodes, const RegTree& tree,
-                           const common::GHistIndexMatrix& gmat,
-                           std::vector<int32_t>* split_conditions);
-
   void InitData(const common::GHistIndexMatrix& gmat,
                 const USMVector<GradientPair, MemoryType::on_device> &gpair,
                 const DMatrix& fmat,

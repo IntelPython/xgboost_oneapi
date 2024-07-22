@@ -432,4 +432,12 @@ TEST(SyclHistUpdater, EvaluateSplits) {
   TestHistUpdaterEvaluateSplits<double>(param);
 }
 
+TEST(SyclHistUpdater, ApplySplit) {
+  xgboost::tree::TrainParam param;
+  param.UpdateAllowUnknown(Args{{"max_depth", "3"}});
+
+  // TestHistUpdaterApplySplit<float>(param);
+  // TestHistUpdaterApplySplit<double>(param);
+}
+
 }  // namespace xgboost::sycl::tree

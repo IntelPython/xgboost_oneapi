@@ -395,8 +395,8 @@ void TestHistUpdaterEvaluateSplits(const xgboost::tree::TrainParam& param) {
 
 template <typename GradientSumT>
 void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float sparsity, int max_bins) {
-  const size_t num_rows = 16;
-  const size_t num_columns = 1;
+  const size_t num_rows = 1024;
+  const size_t num_columns = 2;
 
   Context ctx;
   ctx.UpdateAllowUnknown(Args{{"device", "sycl"}});
@@ -431,6 +431,7 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
 
   // Reference Implementation
   std::vector<size_t> row_indices_desired_host(num_rows);
+  size_t n_left, n_right;
   {
     TestHistUpdater<GradientSumT> updater4verification(&ctx, qu, param, int_constraints, p_fmat.get());
     auto* row_set_collection4verification = updater4verification.TestInitData(gmat, gpair, *p_fmat, tree);
@@ -457,17 +458,20 @@ void TestHistUpdaterApplySplit(const xgboost::tree::TrainParam& param, float spa
     }
     qu.wait_and_throw();
 
-    for (size_t i = 0; i < n_nodes; ++i) {
-      const int32_t nid = nodes[i].nid;
-      const size_t n_left = partition_builder.GetNLeftElems(i);
-      const size_t n_right = partition_builder.GetNRightElems(i);
+    const int32_t nid = nodes[0].nid;
+    n_left = partition_builder.GetNLeftElems(0);
+    n_right = partition_builder.GetNRightElems(0);
 
-      row_set_collection4verification->AddSplit(nid, tree[nid].LeftChild(),
-          tree[nid].RightChild(), n_left, n_right);
-    }
+    row_set_collection4verification->AddSplit(nid, tree[nid].LeftChild(),
+        tree[nid].RightChild(), n_left, n_right);
 
     qu.memcpy(row_indices_desired_host.data(), row_set_collection4verification->Data().Data(), sizeof(size_t)*num_rows).wait();
   }
+
+  std::sort(row_indices_desired_host.begin(), row_indices_desired_host.begin() + n_left);
+  std::sort(row_indices_host.begin(), row_indices_host.begin() + n_left);
+  std::sort(row_indices_desired_host.begin() + n_left, row_indices_desired_host.end());
+  std::sort(row_indices_host.begin() + n_left, row_indices_host.end());
 
   for (size_t row = 0; row < num_rows; ++row) {
     ASSERT_EQ(row_indices_desired_host[row], row_indices_host[row]);

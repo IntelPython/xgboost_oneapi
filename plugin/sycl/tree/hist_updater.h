@@ -119,7 +119,6 @@ class HistUpdater {
 
   void ApplySplit(std::vector<ExpandEntry> nodes,
                       const common::GHistIndexMatrix& gmat,
-                      const common::HistCollection<GradientSumT, MemoryType::on_device>& hist,
                       RegTree* p_tree);
 
   void AddSplitsToRowSet(const std::vector<ExpandEntry>& nodes, RegTree* p_tree);

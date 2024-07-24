@@ -190,7 +190,7 @@ void HistUpdater<GradientSumT>::EvaluateAndApplySplits(
   std::vector<ExpandEntry> nodes_for_apply_split;
   AddSplitsToTree(gmat, p_tree, num_leaves, depth,
                   &nodes_for_apply_split, temp_qexpand_depth);
-  ApplySplit(nodes_for_apply_split, gmat, hist_, p_tree);
+  ApplySplit(nodes_for_apply_split, gmat, p_tree);
 }
 
 // Split nodes to 2 sets depending on amount of rows in each node
@@ -306,7 +306,7 @@ void HistUpdater<GradientSumT>::ExpandWithLossGuide(
                          right_leaf_weight, e.best.loss_chg, e.stats.GetHess(),
                          e.best.left_sum.GetHess(), e.best.right_sum.GetHess());
 
-      this->ApplySplit({candidate}, gmat, hist_, p_tree);
+      this->ApplySplit({candidate}, gmat, p_tree);
 
       const int cleft = (*p_tree)[nid].LeftChild();
       const int cright = (*p_tree)[nid].RightChild();
@@ -807,7 +807,6 @@ template <typename GradientSumT>
 void HistUpdater<GradientSumT>::ApplySplit(
                       const std::vector<ExpandEntry> nodes,
                       const common::GHistIndexMatrix& gmat,
-                      const common::HistCollection<GradientSumT, MemoryType::on_device>& hist,
                       RegTree* p_tree) {
   using CommonRowPartitioner = xgboost::tree::CommonRowPartitioner;
   builder_monitor_.Start("ApplySplit");

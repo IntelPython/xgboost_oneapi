@@ -71,9 +71,6 @@ class TestHistUpdater : public HistUpdater<GradientSumT> {
                                DMatrix *p_fmat,
                                RegTree* p_tree,
                                const USMVector<GradientPair, MemoryType::on_device> &gpair) {
-    // HistUpdater<GradientSumT>::tree_evaluator_.Reset(HistUpdater<GradientSumT>::qu_,
-    //                                                  HistUpdater<GradientSumT>::param_,
-    //                                                  p_fmat->Info().num_col_);
     HistUpdater<GradientSumT>::ExpandWithLossGuide(gmat, p_tree, gpair);
   }
 };

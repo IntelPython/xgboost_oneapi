@@ -142,11 +142,9 @@ class HistUpdater {
   void InitNewNode(int nid,
                    const common::GHistIndexMatrix& gmat,
                    const USMVector<GradientPair, MemoryType::on_device> &gpair,
-                   const DMatrix& fmat,
                    const RegTree& tree);
 
   void ExpandWithDepthWise(const common::GHistIndexMatrix &gmat,
-                            DMatrix *p_fmat,
                             RegTree *p_tree,
                             const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
@@ -169,7 +167,6 @@ class HistUpdater {
                   RegTree *p_tree);
 
   void BuildNodeStats(const common::GHistIndexMatrix &gmat,
-                      DMatrix *p_fmat,
                       RegTree *p_tree,
                       const USMVector<GradientPair, MemoryType::on_device> &gpair);
 
@@ -188,7 +185,6 @@ class HistUpdater {
             std::vector<ExpandEntry>* temp_qexpand_depth);
 
   void ExpandWithLossGuide(const common::GHistIndexMatrix& gmat,
-                           DMatrix* p_fmat,
                            RegTree* p_tree,
                            const USMVector<GradientPair, MemoryType::on_device>& gpair);
 

@@ -564,9 +564,7 @@ void TestHistUpdaterExpandWithDepthWise(const xgboost::tree::TrainParam& param) 
 
   RegTree tree;
   FeatureInteractionConstraintHost int_constraints;
-  ObjInfo task{ObjInfo::kRegression};
-  std::unique_ptr<TreeUpdater> pruner{TreeUpdater::Create("prune", &ctx, &task)};
-  TestHistUpdater<GradientSumT> updater(&ctx, qu, param, std::move(pruner), int_constraints, p_fmat.get());
+  TestHistUpdater<GradientSumT> updater(&ctx, qu, param, int_constraints, p_fmat.get());
   updater.SetHistSynchronizer(new BatchHistSynchronizer<GradientSumT>());
   updater.SetHistRowsAdder(new BatchHistRowsAdder<GradientSumT>());
   auto* row_set_collection = updater.TestInitData(gmat, gpair, *p_fmat, tree);

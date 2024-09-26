@@ -20,18 +20,25 @@ namespace sycl {
                                     (collective::IsDistributed());
     if (not_use_default_selector) {
       DeviceRegister& device_register = GetDevicesRegister();
-      const int device_idx =
-          collective::IsDistributed() ? collective::GetRank() : device_spec.ordinal;
       if (device_spec.IsSyclDefault()) {
         auto& devices = device_register.devices;
+        const int device_idx = collective::IsDistributed()
+                               ? collective::GetRank() % devices.size()
+                               : device_spec.ordinal;
         CHECK_LT(device_idx, devices.size());
         return devices[device_idx];
       } else if (device_spec.IsSyclCPU()) {
         auto& cpu_devices = device_register.cpu_devices;
+        const int device_idx = collective::IsDistributed()
+                               ? collective::GetRank() % cpu_devices.size()
+                               : device_spec.ordinal;
         CHECK_LT(device_idx, cpu_devices.size());
         return cpu_devices[device_idx];
       } else {
         auto& gpu_devices = device_register.gpu_devices;
+        const int device_idx = collective::IsDistributed()
+                               ? collective::GetRank() % gpu_devices.size()
+                               : device_spec.ordinal;
         CHECK_LT(device_idx, gpu_devices.size());
         return gpu_devices[device_idx];
       }

@@ -134,22 +134,23 @@ void SortPositionBatch(common::Span<const PerNodeData<OpDataT>> d_batch_info,
       });
   size_t temp_bytes = 0;
   if (tmp->empty()) {
-    cub::DeviceScan::InclusiveScan(nullptr, temp_bytes, input_iterator, discard_write_iterator,
-                                   IndexFlagOp(), total_rows);
+    dh::safe_cuda(cub::DeviceScan::InclusiveScan(
+        nullptr, temp_bytes, input_iterator, discard_write_iterator, IndexFlagOp(), total_rows));
     tmp->resize(temp_bytes);
   }
   temp_bytes = tmp->size();
-  cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
-                                 discard_write_iterator, IndexFlagOp(), total_rows);
+  dh::safe_cuda(cub::DeviceScan::InclusiveScan(tmp->data().get(), temp_bytes, input_iterator,
+                                               discard_write_iterator, IndexFlagOp(), total_rows));
 
   constexpr int kBlockSize = 256;
 
   // Value found by experimentation
   const int kItemsThread = 12;
-  const int grid_size = xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
 
-  SortPositionCopyKernel<kBlockSize, RowIndexT, OpDataT>
-      <<<grid_size, kBlockSize, 0>>>(batch_info_itr, ridx, ridx_tmp, total_rows);
+  std::uint32_t const kGridSize =
+      xgboost::common::DivRoundUp(total_rows, kBlockSize * kItemsThread);
+  dh::LaunchKernel{kGridSize, kBlockSize, 0}(SortPositionCopyKernel<kBlockSize, RowIndexT, OpDataT>,
+                                             batch_info_itr, ridx, ridx_tmp, total_rows);
 }
 
 struct NodePositionInfo {
@@ -328,11 +329,13 @@ class RowPartitioner {
                                   sizeof(NodePositionInfo) * ridx_segments_.size(),
                                   cudaMemcpyDefault));
 
-    constexpr int kBlockSize = 512;
+    constexpr std::uint32_t kBlockSize = 512;
     const int kItemsThread = 8;
-    const int grid_size = xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
+    const std::uint32_t grid_size =
+        xgboost::common::DivRoundUp(ridx_.size(), kBlockSize * kItemsThread);
     common::Span<const RowIndexT> d_ridx(ridx_.data().get(), ridx_.size());
-    FinalisePositionKernel<kBlockSize><<<grid_size, kBlockSize, 0>>>(
+    dh::LaunchKernel{grid_size, kBlockSize}(
+        FinalisePositionKernel<kBlockSize, RowIndexT, FinalisePositionOpT>,
         dh::ToSpan(d_node_info_storage), d_ridx, d_out_position, op);
   }
 };

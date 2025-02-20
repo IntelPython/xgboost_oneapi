@@ -4,7 +4,7 @@ if(PLUGIN_SYCL)
   string(REPLACE " -isystem ${CONDA_PREFIX}/include" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-project(xgboost LANGUAGES CXX C VERSION 2.1.3)
+project(xgboost LANGUAGES CXX C VERSION 2.1.4)
 include(cmake/Utils.cmake)
 list(APPEND CMAKE_MODULE_PATH "${xgboost_SOURCE_DIR}/cmake/modules")
 
@@ -325,7 +325,6 @@ if(PLUGIN_RMM)
   list(REMOVE_ITEM rmm_link_libs CUDA::cudart)
   list(APPEND rmm_link_libs CUDA::cudart_static)
   set_target_properties(rmm::rmm PROPERTIES INTERFACE_LINK_LIBRARIES "${rmm_link_libs}")
-  get_target_property(rmm_link_libs rmm::rmm INTERFACE_LINK_LIBRARIES)
 endif()
 
 if(PLUGIN_SYCL)

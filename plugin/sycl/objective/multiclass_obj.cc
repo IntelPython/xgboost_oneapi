@@ -25,8 +25,7 @@
 #include "../common/linalg_op.h"
 
 #include "../device_manager.h"
-#include "../data.h"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

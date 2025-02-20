@@ -20,3 +20,4 @@ dependencies:
 - dpcpp_linux-64
 - onedpl-devel
 - dask
+- intel-openmp

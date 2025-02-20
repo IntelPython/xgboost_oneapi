@@ -7,7 +7,7 @@
 #include <limits>
 #include <mutex>
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../data.h"
 

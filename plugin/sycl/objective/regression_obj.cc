@@ -24,6 +24,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
 #include "../../../src/objective/regression_loss.h"
+#include "../../../src/objective/adaptive.h"
 #pragma GCC diagnostic pop
 #include "../../../src/objective/regression_param.h"
 
@@ -32,7 +33,7 @@
 #include "../device_manager.h"
 #include "../data.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace xgboost {
 namespace sycl {

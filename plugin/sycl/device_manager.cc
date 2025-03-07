@@ -19,8 +19,8 @@ namespace sycl {
     size_t queue_idx;
     bool not_use_default_selector = (device_spec.ordinal != kDefaultOrdinal) ||
                                     (collective::IsDistributed());
+    DeviceRegister& device_register = GetDevicesRegister();
     if (not_use_default_selector) {
-        DeviceRegister& device_register = GetDevicesRegister();
         if (device_spec.IsSyclDefault()) {
             auto& devices = device_register.devices;
             const int device_idx = collective::IsDistributed()

@@ -142,8 +142,7 @@ class RegLossObj : public FitInterceptGlmLike {
 
     common::Transform<>::Init(
         [block_size, ndata, n_targets] XGBOOST_DEVICE(
-            size_t data_block_idx, auto has_fp64_support,
-            common::Span<float> _additional_input,
+            size_t data_block_idx, common::Span<float> _additional_input,
             common::Span<GradientPair> _out_gpair,
             common::Span<const bst_float> _preds,
             common::Span<const bst_float> _labels,
@@ -180,7 +179,7 @@ class RegLossObj : public FitInterceptGlmLike {
 
   void PredTransform(HostDeviceVector<float> *io_preds) const override {
     common::Transform<>::Init(
-        [] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support, common::Span<float> _preds) {
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<float> _preds) {
           _preds[_idx] = Loss::PredTransform(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
@@ -361,7 +360,7 @@ class PoissonRegression : public FitInterceptGlmLike {
     }
     bst_float max_delta_step = param_.max_delta_step;
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support,
+        [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<int> _label_correct,
                            common::Span<GradientPair> _out_gpair,
                            common::Span<const bst_float> _preds,
@@ -388,7 +387,7 @@ class PoissonRegression : public FitInterceptGlmLike {
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     common::Transform<>::Init(
-        [] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support, common::Span<bst_float> _preds) {
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),
@@ -567,7 +566,7 @@ class TweedieRegression : public FitInterceptGlmLike {
 
     const float rho = param_.tweedie_variance_power;
     common::Transform<>::Init(
-        [=] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support,
+        [=] XGBOOST_DEVICE(size_t _idx,
                            common::Span<int> _label_correct,
                            common::Span<GradientPair> _out_gpair,
                            common::Span<const bst_float> _preds,
@@ -598,7 +597,7 @@ class TweedieRegression : public FitInterceptGlmLike {
   }
   void PredTransform(HostDeviceVector<bst_float> *io_preds) const override {
     common::Transform<>::Init(
-        [] XGBOOST_DEVICE(size_t _idx, auto has_fp64_support, common::Span<bst_float> _preds) {
+        [] XGBOOST_DEVICE(size_t _idx, common::Span<bst_float> _preds) {
           _preds[_idx] = expf(_preds[_idx]);
         },
         common::Range{0, static_cast<int64_t>(io_preds->Size())}, this->ctx_->Threads(),

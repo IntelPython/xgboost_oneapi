@@ -50,9 +50,10 @@ void mergeSort(BinIdxType* begin, BinIdxType* end, BinIdxType* buf) {
 
 template <typename BinIdxType, bool isDense>
 void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
-                                    Context const * ctx,
                                     BinIdxType* index_data,
-                                    DMatrix *dmat) {
+                                    DMatrix *dmat,
+                                    size_t nbins,
+                                    size_t row_stride) {
   if (nbins == 0) return;
   const bst_float* cut_values = cut.cut_values_.ConstDevicePointer();
   const uint32_t* cut_ptrs = cut.cut_ptrs_.ConstDevicePointer();
@@ -60,19 +61,17 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
 
   BinIdxType* sort_data = reinterpret_cast<BinIdxType*>(sort_buff.Data());
 
+  ::sycl::event event;
   for (auto &batch : dmat->GetBatches<SparsePage>()) {
-    batch.data.SetDevice(ctx->Device());
-    batch.offset.SetDevice(ctx->Device());
-
-    const xgboost::Entry *data_ptr = batch.data.ConstDevicePointer();
-    const bst_idx_t *offset_vec = batch.offset.ConstDevicePointer();
-    size_t batch_size = batch.Size();
-    if (batch_size > 0) {
-      const auto base_rowid = batch.base_rowid;
-      size_t row_stride = this->row_stride;
-      size_t nbins = this->nbins;
-      qu->submit([&](::sycl::handler& cgh) {
-         cgh.parallel_for<>(::sycl::range<1>(batch_size), [=](::sycl::item<1> pid) {
+    for (auto &batch : dmat->GetBatches<SparsePage>()) {
+      const xgboost::Entry *data_ptr = batch.data.ConstDevicePointer();
+      const bst_idx_t *offset_vec = batch.offset.ConstDevicePointer();
+      size_t batch_size = batch.Size();
+      if (batch_size > 0) {
+        const auto base_rowid = batch.base_rowid;
+        event = qu->submit([&](::sycl::handler& cgh) {
+          cgh.depends_on(event);
+          cgh.parallel_for<>(::sycl::range<1>(batch_size), [=](::sycl::item<1> pid) {
           const size_t i = pid.get_id(0);
           const size_t ibegin = offset_vec[i];
           const size_t iend = offset_vec[i + 1];
@@ -93,22 +92,23 @@ void GHistIndexMatrix::SetIndexData(::sycl::queue* qu,
           }
         });
       });
-      qu->wait();
+      }
     }
   }
+  qu->wait();
 }
 
-void GHistIndexMatrix::ResizeIndex(::sycl::queue* qu, size_t n_index) {
-  if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense_) {
+void GHistIndexMatrix::ResizeIndex(size_t n_index, bool isDense) {
+  if ((max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint8_t>::max())) && isDense) {
     index.SetBinTypeSize(BinTypeSize::kUint8BinsTypeSize);
-    index.Resize(qu, (sizeof(uint8_t)) * n_index);
+    index.Resize((sizeof(uint8_t)) * n_index);
   } else if ((max_num_bins - 1 > static_cast<int>(std::numeric_limits<uint8_t>::max())  &&
-    max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense_) {
+    max_num_bins - 1 <= static_cast<int>(std::numeric_limits<uint16_t>::max())) && isDense) {
     index.SetBinTypeSize(BinTypeSize::kUint16BinsTypeSize);
-    index.Resize(qu, (sizeof(uint16_t)) * n_index);
+    index.Resize((sizeof(uint16_t)) * n_index);
   } else {
     index.SetBinTypeSize(BinTypeSize::kUint32BinsTypeSize);
-    index.Resize(qu, (sizeof(uint32_t)) * n_index);
+    index.Resize((sizeof(uint32_t)) * n_index);
   }
 }
 
@@ -122,50 +122,52 @@ void GHistIndexMatrix::Init(::sycl::queue* qu,
   cut.SetDevice(ctx->Device());
 
   max_num_bins = max_bins;
-  nbins = cut.Ptrs().back();
+  const uint32_t nbins = cut.Ptrs().back();
+  this->nbins = nbins;
 
   hit_count.SetDevice(ctx->Device());
   hit_count.Resize(nbins, 0);
 
+  this->p_fmat = dmat;
   const bool isDense = dmat->IsDense();
   this->isDense_ = isDense;
 
+  index.setQueue(qu);
+
   row_stride = 0;
   size_t n_rows = 0;
-  if (!isDense) {
-    for (const auto& batch : dmat->GetBatches<SparsePage>()) {
-      const auto& row_offset = batch.offset.ConstHostVector();
-      n_rows += batch.Size();
-      for (auto i = 1ull; i < row_offset.size(); i++) {
-        row_stride = std::max(row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
-      }
+  for (const auto& batch : dmat->GetBatches<SparsePage>()) {
+    const auto& row_offset = batch.offset.ConstHostVector();
+    batch.data.SetDevice(ctx->Device());
+    batch.offset.SetDevice(ctx->Device());
+    n_rows += batch.Size();
+    for (auto i = 1ull; i < row_offset.size(); i++) {
+      row_stride = std::max(row_stride, static_cast<size_t>(row_offset[i] - row_offset[i - 1]));
     }
-  } else {
-    row_stride = nfeatures;
-    n_rows = dmat->Info().num_row_;
   }
 
   const size_t n_offsets = cut.cut_ptrs_.Size() - 1;
   const size_t n_index = n_rows * row_stride;
-  ResizeIndex(qu, n_index);
+  ResizeIndex(n_index, isDense);
 
   CHECK_GT(cut.cut_values_.Size(), 0U);
 
   if (isDense) {
     BinTypeSize curent_bin_size = index.GetBinTypeSize();
     if (curent_bin_size == BinTypeSize::kUint8BinsTypeSize) {
-      SetIndexData<uint8_t, true>(qu, ctx, index.data<uint8_t>(), dmat);
+      SetIndexData<uint8_t, true>(qu, index.data<uint8_t>(), dmat, nbins, row_stride);
+
     } else if (curent_bin_size == BinTypeSize::kUint16BinsTypeSize) {
-      SetIndexData<uint16_t, true>(qu, ctx, index.data<uint16_t>(), dmat);
+      SetIndexData<uint16_t, true>(qu, index.data<uint16_t>(), dmat, nbins, row_stride);
     } else {
       CHECK_EQ(curent_bin_size, BinTypeSize::kUint32BinsTypeSize);
-      SetIndexData<uint32_t, true>(qu, ctx, index.data<uint32_t>(), dmat);
+      SetIndexData<uint32_t, true>(qu, index.data<uint32_t>(), dmat, nbins, row_stride);
     }
   /* For sparse DMatrix we have to store index of feature for each bin
      in index field to chose right offset. So offset is nullptr and index is not reduced */
   } else {
     sort_buff.Resize(qu, n_rows * row_stride * sizeof(uint32_t));
-    SetIndexData<uint32_t, false>(qu, ctx, index.data<uint32_t>(), dmat);
+    SetIndexData<uint32_t, false>(qu, index.data<uint32_t>(), dmat, nbins, row_stride);
   }
 }
 

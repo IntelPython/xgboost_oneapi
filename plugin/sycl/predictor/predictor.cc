@@ -291,7 +291,7 @@ class Predictor : public xgboost::Predictor {
         }
 
         if (num_group == 1) {
-          float& sum = out_predictions[row_idx];
+          float sum = 0.0;
           for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
             const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
             if constexpr (any_missing) {
@@ -300,6 +300,7 @@ class Predictor : public xgboost::Predictor {
               sum += GetLeafWeight(first_node, fval_buff_row_ptr);
             }
           }
+          out_predictions[row_idx] += sum;
         } else {
           for (int tree_idx = tree_begin; tree_idx < tree_end; tree_idx++) {
             const Node* first_node = nodes + first_node_position[tree_idx - tree_begin];
@@ -332,6 +333,7 @@ class Predictor : public xgboost::Predictor {
     int num_features = dmat->Info().num_col_;
 
     float* out_predictions = out_preds->DevicePointer();
+    ::sycl::event event;
     for (auto &batch : dmat->GetBatches<SparsePage>()) {
       batch.data.SetDevice(ctx_->Device());
       batch.offset.SetDevice(ctx_->Device());
@@ -341,7 +343,6 @@ class Predictor : public xgboost::Predictor {
       if (batch_size > 0) {
         const auto base_rowid = batch.base_rowid;
 
-        ::sycl::event event;
         if (needs_buffer_update) {
           fval_buff.ResizeNoCopy(qu_, num_features * batch_size);
           if constexpr (any_missing) {
@@ -353,9 +354,9 @@ class Predictor : public xgboost::Predictor {
                                    row_ptr, batch_size, num_features,
                                    num_group, tree_begin, tree_end);
         needs_buffer_update = (batch_size != out_preds->Size());
-        qu_->wait();
       }
     }
+    qu_->wait();
   }
 
   mutable USMVector<float,   MemoryType::on_device> fval_buff;

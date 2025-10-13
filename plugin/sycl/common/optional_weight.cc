@@ -32,7 +32,7 @@ double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights) {
   sycl::DeviceManager device_manager;
   auto* qu = device_manager.GetQueue(ctx->Device());
 
-  book has_fp64_support = qu->get_device().has(::sycl::aspect::fp64);
+  bool has_fp64_support = qu->get_device().has(::sycl::aspect::fp64);
   if (has_fp64_support) {
     return ElementWiseSum<double>(qu, weights);
   } else {

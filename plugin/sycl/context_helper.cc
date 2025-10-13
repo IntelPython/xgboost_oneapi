@@ -14,7 +14,11 @@ namespace sycl {
 
 DeviceOrd DeviceFP64(const DeviceOrd& device) {
   DeviceManager device_manager;
-  bool support_fp64 = device_manager.GetQueue(device)->get_device().has(::sycl::aspect::fp64);
+  bool support_fp64 = true;
+  if (device.IsSycl()) {
+    support_fp64 = device_manager.GetQueue(device)->get_device().has(::sycl::aspect::fp64);
+  }
+
   if (support_fp64) {
     return device;
   } else {

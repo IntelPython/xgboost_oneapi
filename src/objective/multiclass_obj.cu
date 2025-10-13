@@ -113,7 +113,10 @@ class SoftmaxMultiClassObj : public ObjFunction {
     auto weights = common::MakeOptionalWeights(device, info.weights_);
 
     preds.SetDevice(device);
-    auto predt = linalg::MakeTensorView(this->ctx_, &preds, n_samples, n_classes);
+    Context cpu_context = Context();
+    auto predt = linalg::MakeTensorView(
+      device == ctx_->Device() ? this->ctx_ : &cpu_context,
+      &preds, n_samples, n_classes);
     CHECK_EQ(labels.Shape(1), 1);
     auto y1d = labels.Slice(linalg::All(), 0);
     CHECK_EQ(y1d.Shape(0), info.num_row_);

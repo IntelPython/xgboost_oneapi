@@ -110,7 +110,7 @@ class SoftmaxMultiClassObj : public ObjFunction {
           << "Number of weights should be equal to number of data points.";
     }
     info.weights_.SetDevice(device);
-    auto weights = common::MakeOptionalWeights(this->ctx_->Device(), info.weights_);
+    auto weights = common::MakeOptionalWeights(device, info.weights_);
 
     preds.SetDevice(device);
     auto predt = linalg::MakeTensorView(this->ctx_, &preds, n_samples, n_classes);

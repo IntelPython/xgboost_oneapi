@@ -103,7 +103,7 @@ bool Validate(DeviceOrd device, TensorView<T, D> t, Fn&& fn) {
 namespace linalg {
 template <typename T, int32_t D, typename Fn>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  if (ctx->IsSycl()) {
+  if (t.Device().IsSycl()) {
     sycl::linalg::ElementWiseKernel(t, fn);
   } else {
     ElementWiseKernelHost(t, ctx->Threads(), fn);

@@ -110,9 +110,8 @@ class SoftmaxMultiClassObj : public ObjFunction {
 
     preds.SetDevice(device);
     Context cpu_context = Context();
-    auto predt = linalg::MakeTensorView(
-      device == ctx_->Device() ? this->ctx_ : &cpu_context,
-      &preds, n_samples, n_classes);
+    auto predt = linalg::MakeTensorView(device == ctx_->Device() ? this->ctx_ : &cpu_context,
+                                        &preds, n_samples, n_classes);
     CHECK_EQ(labels.Shape(1), 1);
     auto y1d = labels.Slice(linalg::All(), 0);
     CHECK_EQ(y1d.Shape(0), info.num_row_);

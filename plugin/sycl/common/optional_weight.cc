@@ -8,14 +8,13 @@
 #include "../device_manager.h"
 
 namespace xgboost::common::sycl_impl {
-double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights) {
-  sycl::DeviceManager device_manager;
-  auto* qu = device_manager.GetQueue(ctx->Device());
 
+template <typename T>
+T ElementWiseSum(::sycl::queue* qu, OptionalWeights const& weights) {
   const auto* data = weights.Data();
-  double result = 0;
+  T result = 0;
   {
-    ::sycl::buffer<double> buff(&result, 1);
+    ::sycl::buffer<T> buff(&result, 1);
     qu->submit([&](::sycl::handler& cgh) {
       auto reduction = ::sycl::reduction(buff, cgh, ::sycl::plus<>());
       cgh.parallel_for<>(::sycl::range<1>(weights.Size()), reduction,
@@ -27,5 +26,17 @@ double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights) {
   }
 
   return result;
+}
+
+double SumOptionalWeights(Context const* ctx, OptionalWeights const& weights) {
+  sycl::DeviceManager device_manager;
+  auto* qu = device_manager.GetQueue(ctx->Device());
+
+  bool has_fp64_support = qu->get_device().has(::sycl::aspect::fp64);
+  if (has_fp64_support) {
+    return ElementWiseSum<double>(qu, weights);
+  } else {
+    return ElementWiseSum<float>(qu, weights);
+  }
 }
 }  // namespace xgboost::common::sycl_impl

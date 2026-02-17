@@ -159,9 +159,13 @@ void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 #elif defined(SYCL_LANGUAGE_VERSION)
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>
 void ElementWiseKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
-  ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
-                      [&] { LOG(FATAL) << "Invalid TU"; },
-                      [&] { ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn)); });
+  if (t.Device().IsCPU()) {
+    cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn));
+  } else {
+    ctx->DispatchDevice([&] { cpu_impl::ElementWiseKernel(t, ctx->Threads(), std::forward<Fn>(fn)); },
+                        [&] { LOG(FATAL) << "Invalid TU"; },
+                        [&] { ::xgboost::sycl::linalg::ElementWiseKernel(t, std::forward<Fn>(fn)); });
+  }
 }
 #else
 template <typename T, std::int32_t D, typename Fn, auto _tag = detail::SysTag()>

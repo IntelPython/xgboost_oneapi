@@ -247,9 +247,19 @@ void TransformKernel(Context const* ctx, TensorView<T, D> t, Fn&& fn) {
 
 // vector-scalar multiplication
 template <auto _tag = detail::SysTag()>
+void VecScaMulFp32(Context const* ctx, linalg::VectorView<float> x, float mul) {
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return v * mul; });
+}
+
+// vector-scalar multiplication
+template <auto _tag = detail::SysTag()>
 void VecScaMul(Context const* ctx, linalg::VectorView<float> x, double mul) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
-  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return v * mul; });
+  if (ctx->DeviceFP64() != ctx->Device()) {
+    VecScaMulFp32(ctx, x, mul);
+  } else {
+    TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return v * mul; });
+  }
 }
 
 // vector-scalar division
@@ -261,7 +271,11 @@ void VecScaDiv(Context const* ctx, linalg::VectorView<float> x, double div) {
 template <auto _tag = detail::SysTag()>
 void LogE(Context const* ctx, linalg::VectorView<float> x, float rt_eps = 0.0f) {
   CHECK_EQ(x.Device().ordinal, ctx->Device().ordinal);
+#if defined(SYCL_LANGUAGE_VERSION)
+  TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return ::sycl::log(v + rt_eps); });
+#else
   TransformKernel(ctx, x, [=] XGBOOST_DEVICE(float v) { return log(v + rt_eps); });
+#endif
 }
 
 template <typename T, std::enable_if_t<std::is_floating_point_v<T>>* = nullptr>
